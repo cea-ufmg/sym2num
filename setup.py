@@ -1,3 +1,5 @@
+#!/usr/bin/env python3
+
 from setuptools import setup, find_packages
 
 
@@ -5,11 +7,12 @@ setup(
     name="sym2num",
     version="0.1",
     packages=find_packages(),
+    install_requires=["numpy", "pystache", "sympy"],
 
     # metadata for upload to PyPI
     author="Dimas Abreu Dutra",
     author_email="dimasadutra@gmail.com",
     description="Sympy to numpy code generator.",
-    license="BSD-2-Clause",
+    license="MIT",
     url="http://github.com/dimasad/sym2num",
 )
