@@ -1,6 +1,7 @@
 '''Sympy numeric function generation.'''
 
 
+import collections
 import itertools
 import keyword
 import re
@@ -12,18 +13,24 @@ import sympy
 
 
 function_template = '''\
-def {{name}}(*args, **kwargs):
+def {{name}}(*_args, **_kwargs):
+    _args = [{{numpy}}.asarray(arg) for arg in _args]
+    _kwargs = {key: {{numpy}}.asarray(arg) for key, arg in _kwargs.items()}
+    
     {{#args}}
-    {{contents}} = {{numpy}}.asarray(args[{{index}}])
+    {{#elements}}
+    {{elem_name}} = _args[{{arg_index}}][{{elem_index}}]
+    {{/elements}}
     {{/args}}
-
     {{#kwargs}}
-    {{contents}} = {{numpy}}.asarray(kwargs["{{key}}"])
+    {{#elements}}
+    {{elem_name}} = _kwargs["{{key}}"][{{elem_index}}]
+    {{/elements}}
     {{/kwargs}}
 
-    _bcast_args = {{numpy}}.broadcast_arrays(*{{broadcast_elems}})
-    _base_shape = _bcast_args[0].shape
-    _out = {{numpy}}.empty({{out_shape}} + _base_shape)
+    _broadcast = {{numpy}}.broadcast(*{{broadcast_elems}})
+    _base_shape = _broadcast.shape
+    _out = {{numpy}}.empty(_base_shape + {{out_shape}})
 
     {{#out_elems}}
     _out[{{index}}] = {{expression}}
@@ -33,91 +40,65 @@ def {{name}}(*args, **kwargs):
 '''
 
 
+def symbol_array(obj):
+    # Convert to python object array
+    arr = np.array(obj, dtype=object)
+    
+    # Check array contents
+    for index, elem in np.ndenumerate(arr):
+        if not isinstance(elem, sympy.Symbol):
+            msg = "Array elements should be `sympy.Symbol`, got `{}.{}`."
+            msg = msg.format(type(elem).__module__, type(elem).__name__)
+            raise TypeError(msg)
+        if keyword.iskeyword(elem.name):
+                msg = "Element index `{}` is python keyword `{}`."
+                raise ValueError(msg.format(index, elem.name))
+        if not elem.name.isidentifier():
+            msg = "Element `{}` at index `{}` is not a valid python identifier."
+            raise ValueError(msg.format(index, elem.name))
+        if elem.name.startswith('_'):
+            warnings.warn("Symbols starting with '_' may conflict " +
+                          "with internal generated variables.")
+    
+    return arr
+
+
 class SymbolicFunction:
     def __init__(self, name, out, args=[], kwargs={}):
-        # Ensure inputs are ndarrays
-        args = [np.asarray(arg, dtype=object) for arg in args]
-        kwargs = {key: np.asarray(arg, dtype=object) for (key, arg) in kwargs}
-        out = np.asarray(out, dtype=object)
-        
-        # Ensure arguments are valid
-        for arg in itertools.chain(args, kwargs.values()):
-            for elem in arg.flat:
-                if not isinstance(elem, sympy.Symbol):
-                    msg = "Function arguments should be sympy.Symbol arrays."
-                    raise TypeError(msg)
-                if keyword.iskeyword(elem.name):
-                    msg = "Function arguments cannot be python keywords."
-                    raise ValueError(msg)
-                if not elem.name.isidentifier():
-                    msg = "Function argument is not a valid python identifier."
-                    raise ValueError(msg)
-                if elem.name in printer.modules:
-                    msg = "Function argument conflicts with printer module."
-                    raise ValueError(msg)
-                if elem.name.startswith('_'):
-                    warnings.warn("Symbols starting with '_' may conflict " +
-                                  "with internal function variables.")
-        self.args = args
-        self.kwargs = kwargs
-        self.out = out
+        self.args = [symbol_array(arg) for arg in args]
+        self.kwargs = {key: symbol_array(arg) for key, arg in kwargs.items()}
+        self.out = np.asarray(out, dtype=object)
+        self.name = name
+    
+    def argument_tags(self, arg):
+        return [
+            dict(elem_index=((...,) + index), elem_name=elem.name)
+            for (index, elem) in np.ndenumerate(arg)
+        ]
     
     def print_def(self, printer):
+        # Check for conflicts between function and printer symbols
+        for arg in itertools.chain(self.args, self.kwargs.values()):
+            for elem in arg.flat:
+                if elem.name in printer.modules:
+                    msg = "Function argument {} conflicts with printer module."
+                    raise ValueError(msg.format(elem.name))
+        
         # Create the template substitution tags
-        tags = dict(name=name, numpy=printer.numpy, out_shape=str(out.shape))
-        tags['args'] = [dict(index=index, contents=arg.tolist())
-                        for index, arg in enumerate(args)]
-        tags['kwargs'] = [dict(key=key, contents=arg.tolist())
-                          for key, arg in kwargs.items()]
+        tags = dict(name=self.name, numpy=printer.numpy, 
+                    out_shape=self.out.shape)
+        tags['args'] = [dict(arg_index=index, elements=self.argument_tags(arg))
+                        for index, arg in enumerate(self.args)]
+        tags['kwargs'] = [dict(key=key, elements=self.argument_tags(arg))
+                          for key, arg in self.kwargs.items()]
         tags['broadcast_elems'] = tuple(
-            arg.flat[0] for arg in itertools.chain(args, kwargs.values())
+            a.flat[0] for a in itertools.chain(self.args, self.kwargs.values())
+            if a.size > 0
         )
-        tags['out_elems'] = [dict(index=index, expression=printer.doprint(expr))
-                             for index, expr in np.ndenumerate(out)]
+        tags['out_elems'] = [
+            dict(index=((...,) + index), expression=printer.doprint(expr))
+            for index, expr in np.ndenumerate(self.out)
+        ]
         
         return pystache.render(function_template, tags)
 
-        
-
-def function_def(printer, name, out, args=[], kwargs={}):
-    # Ensure inputs are ndarrays
-    args = [np.asarray(arg, dtype=object) for arg in args]
-    kwargs = {key: np.asarray(arg, dtype=object) for (key, arg) in kwargs}
-    out = np.asarray(out, dtype=object)
-    
-    # Ensure arguments are valid
-    for arg in itertools.chain(args, kwargs.values()):
-        for elem in arg.flat:
-            if not isinstance(elem, sympy.Symbol):
-                raise TypeError(
-                    "Function arguments should be sympy.Symbol arrays.", elem
-                )
-            if keyword.iskeyword(elem.name):
-                raise ValueError(
-                    "Function arguments cannot be python keywords.", elem
-                )
-            if not elem.name.isidentifier():
-                raise ValueError(
-                    "Function argument is not a valid python identifier.", elem
-                )
-            if elem.name in printer.modules:
-                raise ValueError(
-                    "Function argument conflicts with printer module.", elem
-                )
-            if elem.name.startswith('_'):
-                warnings.warn("Symbols starting with '_' may conflict with " +
-                              "internal function variables.")
-    
-    # Create the template substitution tags
-    tags = dict(name=name, numpy=printer.numpy, out_shape=str(out.shape))
-    tags['args'] = [dict(index=index, contents=arg.tolist())
-                    for index, arg in enumerate(args)]
-    tags['kwargs'] = [dict(key=key, contents=arg.tolist())
-                      for key, arg in kwargs.items()]
-    tags['broadcast_elems'] = tuple(
-        arg.flat[0] for arg in itertools.chain(args, kwargs.values())
-    )
-    tags['out_elems'] = [dict(index=index, expression=printer.doprint(expr))
-                         for index, expr in np.ndenumerate(out)]
-    
-    return pystache.render(function_template, tags)

@@ -34,7 +34,7 @@ class NumpyPrinter(printing.str.StrPrinter):
         return '%s.pi' % (self.numpy,)
     
     def _print_Pow(self, expr):
-        if isinstance(expr.args[1], numbers.Half):
+        if isinstance(expr.args[1], sympy.numbers.Half):
             return '%s.sqrt(%s)' % (self.numpy, self._print(expr.args[0]))
         else:
             return super()._print_Pow(expr)
