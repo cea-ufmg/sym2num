@@ -28,7 +28,7 @@ def {{name}}(*_args, **_kwargs):
     {{/elements}}
     {{/kwargs}}
 
-    _broadcast = {{numpy}}.broadcast(*{{broadcast_elems}})
+    _broadcast = {{numpy}}.broadcast(*{{broadcast}})
     _base_shape = _broadcast.shape
     _out = {{numpy}}.empty(_base_shape + {{out_shape}})
 
@@ -64,11 +64,18 @@ def symbol_array(obj):
 
 
 class SymbolicFunction:
-    def __init__(self, name, out, args=[], kwargs={}):
+    def __init__(self, out, args=[], kwargs={}):
+        # Save the input arguments
         self.args = [symbol_array(arg) for arg in args]
         self.kwargs = {key: symbol_array(arg) for key, arg in kwargs.items()}
         self.out = np.asarray(out, dtype=object)
-        self.name = name
+        
+        # Check for duplicate symbols
+        arg_chain = itertools.chain(self.args, self.kwargs.values())
+        arg_elements = np.concatenate([a.flatten() for a in arg_chain])
+        unique_arg_elements = set(arg_elements)
+        if len(unique_arg_elements) != arg_elements.size:
+            raise ValueError('Duplicate symbols found in function arguments.')
     
     def argument_tags(self, arg):
         return [
@@ -76,29 +83,27 @@ class SymbolicFunction:
             for (index, elem) in np.ndenumerate(arg)
         ]
     
-    def print_def(self, printer):
+    def print_def(self, printer, name):
         # Check for conflicts between function and printer symbols
-        for arg in itertools.chain(self.args, self.kwargs.values()):
-            for elem in arg.flat:
-                if elem.name in printer.modules:
-                    msg = "Function argument {} conflicts with printer module."
-                    raise ValueError(msg.format(elem.name))
+        arg_chain = list(itertools.chain(self.args, self.kwargs.values()))
+        arg_elements = np.concatenate([a.flatten() for a in arg_chain])
+        for elem in arg_elements:
+            if elem.name in printer.modules:
+                msg = "Function argument {} conflicts with printer module."
+                raise ValueError(msg.format(elem.name))
         
         # Create the template substitution tags
-        tags = dict(name=self.name, numpy=printer.numpy, 
-                    out_shape=self.out.shape)
+        tags = dict(name=name, numpy=printer.numpy, out_shape=self.out.shape)
         tags['args'] = [dict(arg_index=index, elements=self.argument_tags(arg))
                         for index, arg in enumerate(self.args)]
         tags['kwargs'] = [dict(key=key, elements=self.argument_tags(arg))
                           for key, arg in self.kwargs.items()]
-        tags['broadcast_elems'] = tuple(
-            a.flat[0] for a in itertools.chain(self.args, self.kwargs.values())
-            if a.size > 0
-        )
+        tags['broadcast'] = tuple(a.flat[0] for a in arg_chain if a.size > 0)
         tags['out_elems'] = [
             dict(index=((...,) + index), expression=printer.doprint(expr))
             for index, expr in np.ndenumerate(self.out)
         ]
         
+        # Render and return
         return pystache.render(function_template, tags)
 
