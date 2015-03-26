@@ -7,13 +7,20 @@ import types
 
 import attrdict
 import numpy as np
+import pystache
 import sympy
 
-from . import function
+from . import function, printing
 
+
+class_template = '''\
+class {{name}}({{bases}}):
+{{#indent}}
+
+{{/indent}}
+'''
 
 class SymbolicModel(metaclass=abc.ABCMeta):
-
     symbol_assumptions = {'real': True}
 
     def __init__(self):
@@ -27,12 +34,11 @@ class SymbolicModel(metaclass=abc.ABCMeta):
                 var[index] = sympy.Symbol(element_name, **assumptions)
             self.vars[var_name] = var
         
-        # Create an AttrDict to hold all the symbols
-        symbol_list = np.concatenate([a.flatten() for a in self.vars.values()])
-        unique_symbols = set(symbol_list)
-        if len(unique_symbols) != len(symbol_list):
+        # Check for duplicate symbols
+        symbols = np.concatenate([a.flatten() for a in self.vars.values()])
+        unique_symbols = set(symbols)
+        if len(unique_symbols) != len(symbols):
             raise ValueError("Duplicate symbols in model variables.")
-        self.symbols = attrdict.AttrDict({s.name: s for s in symbol_list})
         
         # Create the model functions
         self.functions = {}
@@ -48,7 +54,7 @@ class SymbolicModel(metaclass=abc.ABCMeta):
             args = [self.vars[var] for var in signature]
             self.functions[f_name] = function.SymbolicFunction(f(*args), args)
             self.signatures[f_name] = signature
-        
+    
     @property
     @abc.abstractmethod
     def var_names(self):
@@ -70,3 +76,13 @@ class SymbolicModel(metaclass=abc.ABCMeta):
             except KeyError:
                 pass
         return ret
+
+    @staticfunction
+    def symbols(*args):
+        symbol_list = np.concatenate([np.flatten(a) for a in args])
+        return attrdict.AttrDict({s.name: s for s in symbol_list})
+
+    def print_class(self, name, printer, bases=[]):
+        tags = dict(name=name, indent=printing.indent)
+        tags['bases'] = ', '.join(bases)
+        return pystache.render(class_template, tags)
