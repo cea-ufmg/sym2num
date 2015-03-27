@@ -3,6 +3,7 @@
 
 import abc
 import inspect
+import re
 import types
 
 import attrdict
@@ -10,14 +11,17 @@ import numpy as np
 import pystache
 import sympy
 
-from . import function, printing
+from . import function, printing, utils
 
 
 class_template = '''\
 class {{name}}({{bases}}):
-{{#indent}}
+    """Generated code for symbolic model {{sym_name}}"""
+    {{#functions}}
 
-{{/indent}}
+    @staticmethod
+{{def}}
+    {{/functions}}
 '''
 
 class SymbolicModel(metaclass=abc.ABCMeta):
@@ -35,7 +39,7 @@ class SymbolicModel(metaclass=abc.ABCMeta):
             self.vars[var_name] = var
         
         # Check for duplicate symbols
-        symbols = np.concatenate([a.flatten() for a in self.vars.values()])
+        symbols = utils.flat_cat(**self.vars)
         unique_symbols = set(symbols)
         if len(unique_symbols) != len(symbols):
             raise ValueError("Duplicate symbols in model variables.")
@@ -52,7 +56,7 @@ class SymbolicModel(metaclass=abc.ABCMeta):
             else:
                 signature = inspect.getfullargspec(f).args
             args = [self.vars[var] for var in signature]
-            self.functions[f_name] = function.SymbolicFunction(f(*args), args)
+            self.functions[f_name] = function.SymbolicFunction(f, args)
             self.signatures[f_name] = signature
     
     @property
@@ -77,12 +81,19 @@ class SymbolicModel(metaclass=abc.ABCMeta):
                 pass
         return ret
 
-    @staticfunction
-    def symbols(*args):
-        symbol_list = np.concatenate([np.flatten(a) for a in args])
+    @staticmethod
+    def symbols(*args, **kwargs):
+        symbol_list = utils.flat_cat(*args, **kwargs)
         return attrdict.AttrDict({s.name: s for s in symbol_list})
 
-    def print_class(self, name, printer, bases=[]):
-        tags = dict(name=name, indent=printing.indent)
+    def print_class(self, printer, name=None, bases=[]):
+        sym_name = type(self).__name__
+        if name is None:
+            name = re.sub('Symbolic', 'Generated', sym_name)
+        
+        tags = dict(name=name, indent=printing.indent, sym_name=sym_name)
         tags['bases'] = ', '.join(bases)
+        tags['functions'] = [{'def': printing.indent(fsym.print_def(printer))}
+                             for fname, fsym in self.functions.items()]
+        
         return pystache.render(class_template, tags)

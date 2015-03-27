@@ -1,6 +1,9 @@
 '''Sympy numerical code generation utilities.'''
 
 
+import itertools
+import re
+
 import numpy as np
 import sympy
 
@@ -46,6 +49,8 @@ def ndexpr_diff(ndexpr, wrt):
     return jac
 
 
-def indent(text, prefix=(4 * ' ')):
-    '''Indent a multiline string.'''
-    return re.sub('^', prefix, text, flags=re.MULTILINE)
+def flat_cat(*args, **kwargs):
+    '''Concatenate flattened arrays.'''
+    chain = itertools.chain(args, kwargs.values())
+    return np.concatenate([np.asanyarray(a).flatten() for a in chain])
+
