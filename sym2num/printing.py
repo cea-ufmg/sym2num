@@ -56,7 +56,7 @@ class ScipyPrinter(NumpyPrinter):
     
     @property
     def imports(self):
-        return super.imports + ('import scipy as {}'.format(self.scipy),)
+        return super().imports + ('import scipy as {}'.format(self.scipy),)
     
     def _print_erf(self, expr):
         return '%s.special.erf(%s)' % (self.scipy, self._print(expr.args[0]))

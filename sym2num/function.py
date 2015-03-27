@@ -30,7 +30,7 @@ def {{name}}(*_args, **_kwargs):
     {{/elements}}
     {{/kwargs}}
 
-    _broadcast = {{numpy}}.broadcast(*{{broadcast}})
+    _broadcast = {{numpy}}.broadcast({{broadcast}})
     _base_shape = _broadcast.shape
     _out = {{numpy}}.empty(_base_shape + {{out_shape}})
 
