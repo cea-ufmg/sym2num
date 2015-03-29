@@ -32,10 +32,10 @@ def {{name}}(*_args, **_kwargs):
 
     _broadcast = {{numpy}}.broadcast({{broadcast}})
     _base_shape = _broadcast.shape
-    _out = {{numpy}}.empty(_base_shape + {{out_shape}})
+    _out = {{numpy}}.zeros(_base_shape + {{out_shape}})
 
     {{#out_elems}}
-    _out[{{index}}] = {{expression}}
+    _out[{{index}}] = {{expr}}
     {{/out_elems}}
     
     return _out
@@ -66,12 +66,12 @@ def symbol_array(obj):
 
 
 class SymbolicFunction:
-    def __init__(self, f, args=[], kwargs={}):
+    def __init__(self, f, args=[], kwargs={}, name=None):
         # Save the input arguments
         self.args = [symbol_array(arg) for arg in args]
         self.kwargs = {key: symbol_array(arg) for key, arg in kwargs.items()}
         self.out = f(*self.args, **self.kwargs) if callable(f) else f
-        self.name = f.__name__ if callable(f) else None
+        self.name = name or (f.__name__ if callable(f) else None)
         
         # Check for duplicate symbols
         arg_elements = utils.flat_cat(*self.args, **self.kwargs)
@@ -107,14 +107,16 @@ class SymbolicFunction:
             'kwargs': [dict(key=key, elements=self.argument_tags(arg))
                        for key, arg in self.kwargs.items()],
             'broadcast': comma_join(a.flat[0] for a in arg_chain if a.size > 0),
-            'out_elems': [
-                dict(index=((...,) + index), expression=printer.doprint(expr))
-                for index, expr in np.ndenumerate(self.out)
-            ]
+            'out_elems': [dict(index=((...,) + i), expr=printer.doprint(expr))
+                          for i, expr in np.ndenumerate(self.out) if expr != 0]
         }
         
         # Render and return
         return pystache.render(function_template, tags)
+    
+    def diff(self, wrt, name=None):
+        diff = utils.ndexpr_diff(self.out, wrt)
+        return type(self)(diff, args=self.args, kwargs=self.kwargs, name=name)
 
 
 def comma_join(iterable):

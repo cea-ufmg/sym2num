@@ -15,6 +15,9 @@ class ModelA(model.SymbolicModel):
     
     var_names = ['t', 'x', 'y']
     function_names = ['f', 'g']
+    derivatives = [('df_dx', 'f', 'x'),
+                   ('d2f_dx2', 'df_dx', 'x'),
+                   ('d2f_dt2', 'f', ('t', 't'))]
     
     def f(self, t, x):
         s = self.symbols(t, x)

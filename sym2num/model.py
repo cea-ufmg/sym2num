@@ -37,13 +37,7 @@ class SymbolicModel(metaclass=abc.ABCMeta):
             for index, element_name in np.ndenumerate(template):
                 var[index] = sympy.Symbol(element_name, **assumptions)
             self.vars[var_name] = var
-        
-        # Check for duplicate symbols
-        symbols = utils.flat_cat(**self.vars)
-        unique_symbols = set(symbols)
-        if len(unique_symbols) != len(symbols):
-            raise ValueError("Duplicate symbols in model variables.")
-        
+                
         # Create the model functions
         self.functions = {}
         self.signatures = {}
@@ -58,6 +52,10 @@ class SymbolicModel(metaclass=abc.ABCMeta):
             args = [self.vars[var] for var in signature]
             self.functions[f_name] = function.SymbolicFunction(f, args)
             self.signatures[f_name] = signature
+        
+        # Add the derivatives
+        for spec in self.derivatives:
+            self.add_derivative(*spec)
     
     @property
     @abc.abstractmethod
@@ -85,7 +83,7 @@ class SymbolicModel(metaclass=abc.ABCMeta):
     def symbols(*args, **kwargs):
         symbol_list = utils.flat_cat(*args, **kwargs)
         return attrdict.AttrDict({s.name: s for s in symbol_list})
-
+    
     def print_class(self, printer, name=None, bases=[]):
         sym_name = type(self).__name__
         if name is None:
@@ -97,3 +95,15 @@ class SymbolicModel(metaclass=abc.ABCMeta):
                              for fname, fsym in self.functions.items()]
         
         return pystache.render(class_template, tags)
+
+    def add_derivative(self, name, fname, wrt_names):
+        if isinstance(wrt_names, str):
+            wrt_names = (wrt_names,)
+        
+        f = self.functions[fname]
+        for wrt_name in reversed(wrt_names):
+            f = f.diff(self.vars[wrt_name], name)
+        
+        self.functions[name] = f
+        self.signatures[name] = self.signatures[fname]
+
