@@ -17,10 +17,15 @@ from . import function, printing, utils
 class_template = '''\
 class {{name}}({{bases}}):
     """Generated code for symbolic model {{sym_name}}"""
+    var_specs = {{{specs}}}
+    """Specification of the model variables."""
+    
+    signatures = {{{signatures}}}
+    """Signatures of the model functions."""
     {{#functions}}
 
     @staticmethod
-{{def}}
+{{{def}}}
     {{/functions}}
 '''
 
@@ -31,27 +36,29 @@ class SymbolicModel(metaclass=abc.ABCMeta):
         # Create the model variables
         assumptions = self.symbol_assumptions
         self.vars = {}
+        self.var_specs = {}
         for var_name in self.var_names:
-            template = getattr(self, var_name)
-            var = np.zeros(np.shape(template), dtype=object)
-            for index, element_name in np.ndenumerate(template):
+            specs = getattr(self, var_name)
+            var = np.zeros(np.shape(specs), dtype=object)
+            for index, element_name in np.ndenumerate(specs):
                 var[index] = sympy.Symbol(element_name, **assumptions)
             self.vars[var_name] = var
-                
+            self.var_specs[var_name] = specs
+        
         # Create the model functions
         self.functions = {}
         self.signatures = {}
-        for f_name in self.function_names:
-            f = getattr(self, f_name)
+        for fname in self.function_names:
+            f = getattr(self, fname)
             if not callable(f):
-                raise TypeError('Function `{}` not callable.'.format(f_name))
+                raise TypeError('Function `{}` not callable.'.format(fname))
             if isinstance(f, types.MethodType):
                 signature = inspect.getfullargspec(f).args[1:]
             else:
                 signature = inspect.getfullargspec(f).args
             args = [self.vars[var] for var in signature]
-            self.functions[f_name] = function.SymbolicFunction(f, args)
-            self.signatures[f_name] = signature
+            self.functions[fname] = function.SymbolicFunction(f, args)
+            self.signatures[fname] = signature
         
         # Add the derivatives
         for spec in self.derivatives:
@@ -92,10 +99,12 @@ class SymbolicModel(metaclass=abc.ABCMeta):
         tags = dict(name=name, indent=printing.indent, sym_name=sym_name)
         tags['bases'] = ', '.join(bases)
         tags['functions'] = [{'def': printing.indent(fsym.print_def(printer))}
-                             for fname, fsym in self.functions.items()]
+                             for fsym in self.functions.values()]
+        tags['specs'] = self.var_specs
+        tags['signatures'] = self.signatures
         
         return pystache.render(class_template, tags)
-
+    
     def add_derivative(self, name, fname, wrt_names):
         if isinstance(wrt_names, str):
             wrt_names = (wrt_names,)
