@@ -45,22 +45,19 @@ def printer(request):
         return printing.ScipyPrinter()
 
 
-@pytest.fixture(scope="module")
-def a():
-    return ModelA()
-
-
-@pytest.fixture(scope="module")
-def generated(a, printer):
+def test_generated(printer, seed):
+    '''Test the generated model functions against their symbolic expression.'''
+    # Instantiate symbolic model
+    a = ModelA()
+    
+    # Generate code and instantiate generated model
     code = '\n'.join(printer.imports + (a.print_class(printer, 'A'),))
     context = {}
     exec(code, context)
     A = context['A']
-    return A()
-
-
-def test_generated(a, generated, seed):
-    '''Test the generated model functions against their symbolic expression.'''
+    generated = A()
+    
+    # Create symbolic substitution tags and numerical values for model variables
     subs = {}
     vars = {}
     for var_name, var in a.vars.items():
@@ -69,6 +66,7 @@ def test_generated(a, generated, seed):
         for index, elem in np.ndenumerate(var):
             subs[elem] = value[index]
     
+    # Compare the generated and symbolic functions
     for name, symfun in a.functions.items():
         sig = a.signatures[name]
         num = getattr(generated, name)(*[vars[name] for name in sig])

@@ -15,7 +15,7 @@ from . import function, printing, utils
 
 
 class_template = '''\
-class {{name}}({{bases}}):
+class {{name}}({{inheritance}}):
     """Generated code for symbolic model {{sym_name}}"""
     var_specs = {{{specs}}}
     """Specification of the model variables."""
@@ -91,17 +91,18 @@ class SymbolicModel(metaclass=abc.ABCMeta):
         symbol_list = utils.flat_cat(*args, **kwargs)
         return attrdict.AttrDict({s.name: s for s in symbol_list})
     
-    def print_class(self, printer, name=None, bases=[]):
+    def print_class(self, printer, name=None, bases=[], meta=None):
         sym_name = type(self).__name__
         if name is None:
             name = re.sub('Symbolic', 'Generated', sym_name)
+        inheritance = list(bases) + (["metaclass=" + meta] if meta else [])
         
         tags = dict(name=name, indent=printing.indent, sym_name=sym_name)
-        tags['bases'] = ', '.join(bases)
-        tags['functions'] = [{'def': printing.indent(fsym.print_def(printer))}
-                             for fsym in self.functions.values()]
         tags['specs'] = self.var_specs
         tags['signatures'] = self.signatures
+        tags['inheritance'] = ', '.join(inheritance)
+        tags['functions'] = [{'def': printing.indent(fsym.print_def(printer))}
+                             for fsym in self.functions.values()]
         
         return pystache.render(class_template, tags)
     
