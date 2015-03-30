@@ -33,7 +33,7 @@ setup(
     description="Sympy to numpy code generator.",
     long_description=DESCRIPTION,
     platforms=["Windows", "Linux", "Solaris", "Mac OS-X", "Unix"],
-    classifiers=[CLASSIFIERS.split('\n')],
+    classifiers=CLASSIFIERS.split('\n'),
     license="MIT",
     url="http://github.com/dimasad/sym2num",
 )

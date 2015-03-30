@@ -17,11 +17,9 @@ from . import function, printing, utils
 class_template = '''\
 class {{name}}({{inheritance}}):
     """Generated code for symbolic model {{sym_name}}"""
+
     var_specs = {{{specs}}}
-    """Specification of the model variables."""
-    
-    signatures = {{{signatures}}}
-    """Signatures of the model functions."""
+    """Specification of the model variables."""    
     {{#functions}}
 
     @staticmethod
@@ -47,18 +45,16 @@ class SymbolicModel(metaclass=abc.ABCMeta):
         
         # Create the model functions
         self.functions = {}
-        self.signatures = {}
         for fname in self.function_names:
             f = getattr(self, fname)
             if not callable(f):
                 raise TypeError('Function `{}` not callable.'.format(fname))
             if isinstance(f, types.MethodType):
-                signature = inspect.getfullargspec(f).args[1:]
+                argnames = inspect.getfullargspec(f).args[1:]
             else:
-                signature = inspect.getfullargspec(f).args
-            args = [self.vars[var] for var in signature]
+                argnames = inspect.getfullargspec(f).args
+            args = [(name, self.vars[name]) for name in argnames]
             self.functions[fname] = function.SymbolicFunction(f, args)
-            self.signatures[fname] = signature
         
         # Add the derivatives
         for spec in self.derivatives:
@@ -99,7 +95,6 @@ class SymbolicModel(metaclass=abc.ABCMeta):
         
         tags = dict(name=name, indent=printing.indent, sym_name=sym_name)
         tags['specs'] = self.var_specs
-        tags['signatures'] = self.signatures
         tags['inheritance'] = ', '.join(inheritance)
         tags['functions'] = [{'def': printing.indent(fsym.print_def(printer))}
                              for fsym in self.functions.values()]
@@ -115,5 +110,4 @@ class SymbolicModel(metaclass=abc.ABCMeta):
             f = f.diff(self.vars[wrt_name], name)
         
         self.functions[name] = f
-        self.signatures[name] = self.signatures[fname]
 

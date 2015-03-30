@@ -1,6 +1,8 @@
 '''Model generation test.'''
 
 
+import inspect
+
 import numpy as np
 import pytest
 import sympy
@@ -68,8 +70,8 @@ def test_generated(printer, seed):
     
     # Compare the generated and symbolic functions
     for name, symfun in a.functions.items():
-        sig = a.signatures[name]
-        num = getattr(generated, name)(*[vars[name] for name in sig])
+        signature = symfun.args.keys()
+        num = getattr(generated, name)(*[vars[name] for name in signature])
         for index, value in np.ndenumerate(num):
             assert abs(value - symfun.out[index].subs(subs)) < 1e-9
 

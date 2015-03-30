@@ -2,6 +2,7 @@
 
 
 import collections
+import collections.abc as colabc
 import itertools
 import keyword
 import re
@@ -15,25 +16,26 @@ from . import utils
 
 
 function_template = '''\
-def {{name}}(*_args, **_kwargs):
-    _args = [{{numpy}}.asarray(arg) for arg in _args]
-    _kwargs = {key: {{numpy}}.asarray(arg) for key, arg in _kwargs.items()}
-    
+def {{name}}({{signature}}):
+    """Generated function `{{name}}` from sympy ndarray expression."""
+    # Convert arguments to ndarrays and create aliases to prevent name conflicts
+    {{#args}}
+    _arg_{{arg_name}} = {{numpy}}.asarray({{arg_name}})
+    {{/args}}
+
+    # Unpack the elements of each argument
     {{#args}}
     {{#elements}}
-    {{elem_name}} = _args[{{arg_index}}][{{elem_index}}]
+    {{elem_name}} = _arg_{{arg_name}}[{{elem_index}}]
     {{/elements}}
-    {{/args}}
-    {{#kwargs}}
-    {{#elements}}
-    {{elem_name}} = _kwargs["{{key}}"][{{elem_index}}]
-    {{/elements}}
-    {{/kwargs}}
 
+    {{/args}}
+    # Broadcast the input arguments
     _broadcast = {{numpy}}.broadcast({{broadcast}})
     _base_shape = _broadcast.shape
     _out = {{numpy}}.zeros(_base_shape + {{out_shape}})
 
+    # Assign the nonzero elements of the output
     {{#out_elems}}
     _out[{{index}}] = {{expr}}
     {{/out_elems}}
@@ -66,15 +68,22 @@ def symbol_array(obj):
 
 
 class SymbolicFunction:
-    def __init__(self, f, args=[], kwargs={}, name=None):
-        # Save the input arguments
-        self.args = [symbol_array(arg) for arg in args]
-        self.kwargs = {key: symbol_array(arg) for key, arg in kwargs.items()}
-        self.out = f(*self.args, **self.kwargs) if callable(f) else f
+    def __init__(self, f, args=[], name=None):
+        # Process and save the input arguments
+        arg_items = args.items() if isinstance(args, colabc.Mapping) else args
+        arg_items = [(name, symbol_array(arg)) for name, arg in arg_items]
+        self.args = collections.OrderedDict(arg_items)
+        self.out = np.asarray(f(*self.args.values()) if callable(f) else f)
         self.name = name or (f.__name__ if callable(f) else None)
         
+        # Check if a valid name was found
+        if name is None and not callable(f):
+            raise TypeError("A name must be provided if f is not callable.")
+        if not self.name:
+            raise ValueError("Invalid function name for symbolic function.")
+        
         # Check for duplicate symbols
-        arg_elements = utils.flat_cat(*self.args, **self.kwargs)
+        arg_elements = utils.flat_cat(**self.args)
         unique_arg_elements = set(arg_elements)
         if len(unique_arg_elements) != arg_elements.size:
             raise ValueError('Duplicate symbols found in function arguments.')
@@ -85,28 +94,26 @@ class SymbolicFunction:
             for (index, elem) in np.ndenumerate(arg)
         ]
     
-    def print_def(self, printer, name=None):
-        # Initialize internal variables
-        name = name or self.name or 'function'
-        arg_chain = itertools.chain(self.args, self.kwargs.values())
-        arg_elements = utils.flat_cat(*self.args, **self.kwargs)
-        
+    def print_def(self, printer):
         # Check for conflicts between function and printer symbols
-        for elem in arg_elements:
+        for elem in utils.flat_cat(**self.args):
             if elem.name in printer.modules:
                 msg = "Function argument {} conflicts with printer module."
                 raise ValueError(msg.format(elem.name))
         
         # Create the template substitution tags
+        broadcast = comma_join(
+            a.flat[0] for a in self.args.values() if a.size > 0
+        )
+        
         tags = {
-            'name': name, 
+            'name': self.name,
             'numpy': printer.numpy,
+            'broadcast': broadcast,
             'out_shape': self.out.shape,
-            'args': [dict(arg_index=index, elements=self.argument_tags(arg))
-                     for index, arg in enumerate(self.args)],
-            'kwargs': [dict(key=key, elements=self.argument_tags(arg))
-                       for key, arg in self.kwargs.items()],
-            'broadcast': comma_join(a.flat[0] for a in arg_chain if a.size > 0),
+            'signature': comma_join(self.args.keys()),
+            'args': [dict(arg_name=name, elements=self.argument_tags(arg))
+                     for name, arg in self.args.items()],
             'out_elems': [dict(index=((...,) + i), expr=printer.doprint(expr))
                           for i, expr in np.ndenumerate(self.out) if expr != 0]
         }
@@ -114,9 +121,9 @@ class SymbolicFunction:
         # Render and return
         return pystache.render(function_template, tags)
     
-    def diff(self, wrt, name=None):
+    def diff(self, wrt, name):
         diff = utils.ndexpr_diff(self.out, wrt)
-        return type(self)(diff, args=self.args, kwargs=self.kwargs, name=name)
+        return type(self)(diff, args=self.args, name=name)
 
 
 def comma_join(iterable):
