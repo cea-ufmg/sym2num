@@ -11,23 +11,35 @@ from sym2num import model, printing
 
 
 class ModelA(model.SymbolicModel):
-    t = 't'
-    x = ['x1', 'x2']
-    y = [['a', 'b'], ['c', 'd']]
-    
     var_names = ['t', 'x', 'y']
+    '''Names of the model variables.'''
+
     function_names = ['f', 'g']
+    '''Names of the model functions.'''
+
     derivatives = [('df_dx', 'f', 'x'),
                    ('d2f_dx2', 'df_dx', 'x'),
                    ('d2f_dt2', 'f', ('t', 't'))]
+    '''List of the model function derivatives to calculate / generate.'''
     
+    t = 't'
+    '''Specification of the model variable `t`.'''
+    
+    x = ['x1', 'x2']
+    '''Specification of the model variable `x`.'''
+
+    y = [['a', 'b'], ['c', 'd']]
+    '''Specification of the model variable `y`.'''
+
     def f(self, t, x):
+        '''Model function `f`.'''
         s = self.symbols(t, x)
         d = {'x1': s.t * s.x1 ** 2,
              'x2': sympy.exp(s.t * s.x2)}
         return self.pack('x', d)
     
     def g(self, t, y):
+        '''Model function `g`.'''
         s = self.symbols(t, y)
         return np.dot(y, y.T) * sympy.cos(s.t)
 
@@ -53,10 +65,7 @@ def test_generated(printer, seed):
     a = ModelA()
     
     # Generate code and instantiate generated model
-    code = '\n'.join(printer.imports + (a.print_class(printer, 'A'),))
-    context = {}
-    exec(code, context)
-    A = context['A']
+    A = model.class_obj(a, printer, name='A')
     generated = A()
     
     # Create symbolic substitution tags and numerical values for model variables

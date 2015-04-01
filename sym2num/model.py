@@ -57,7 +57,7 @@ class SymbolicModel(metaclass=abc.ABCMeta):
             self.functions[fname] = function.SymbolicFunction(f, args)
         
         # Add the derivatives
-        for spec in self.derivatives:
+        for spec in getattr(self, 'derivatives', []):
             self.add_derivative(*spec)
     
     @property
@@ -71,7 +71,7 @@ class SymbolicModel(metaclass=abc.ABCMeta):
     def function_names(self):
         '''List of the model function names.'''
         raise NotImplementedError("Pure abstract method.")
-
+    
     def pack(self, name, d):
         var = self.vars[name]
         ret = np.zeros(var.shape, dtype=object)
@@ -90,11 +90,10 @@ class SymbolicModel(metaclass=abc.ABCMeta):
     def print_class(self, printer, name=None, bases=[], meta=None):
         sym_name = type(self).__name__
         if name is None:
-            name = re.sub('Symbolic', 'Generated', sym_name)
+            name = sym_name
         inheritance = list(bases) + (["metaclass=" + meta] if meta else [])
         
-        tags = dict(name=name, indent=printing.indent, sym_name=sym_name)
-        tags['specs'] = self.var_specs
+        tags = dict(name=name, specs=self.var_specs, sym_name=sym_name)
         tags['inheritance'] = ', '.join(inheritance)
         tags['functions'] = [{'def': printing.indent(fsym.print_def(printer))}
                              for fsym in self.functions.values()]
@@ -110,4 +109,17 @@ class SymbolicModel(metaclass=abc.ABCMeta):
             f = f.diff(self.vars[wrt_name], name)
         
         self.functions[name] = f
+
+
+def class_obj(sym, printer, context=None, name=None, bases=[], meta=None):
+    # Get the default arguments if none were given
+    if name is None:
+        name = type(sym).__name__
+    if context is None:
+        context = {}
+    
+    # Load the printer imports and execute the model class code
+    exec('\n'.join(printer.imports), context)
+    exec(sym.print_class(printer, name=name, bases=bases, meta=meta), context)
+    return context[name]
 
