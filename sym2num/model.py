@@ -142,7 +142,7 @@ def class_obj(sym, printer, context=None, name=None, meta=None):
 class ParametrizedModel:
     def __init__(self, params={}):
         # Save a copy of the given params
-        self._params = dict(params)
+        self._params = {k: np.asarray(v) for k, v in params.items()}
         
         # Add default parameters for the empty variables
         for name, spec in self.var_specs.items():
