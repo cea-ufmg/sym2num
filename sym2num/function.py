@@ -21,6 +21,10 @@ def {{name}}({{signature}}):
     # Convert arguments to ndarrays and create aliases to prevent name conflicts
     {{#args}}
     _arg_{{arg_name}} = {{numpy}}.asarray({{arg_name}})
+    {{#arg_shape}}
+    if _arg_{{arg_name}}.shape[-{{ndim}}:] != {{arg_shape}}:
+        raise ValueError("Invalid dimensions for argument `{{arg_name}}`.")
+    {{/arg_shape}}
     {{/args}}
 
     # Unpack the elements of each argument
@@ -112,11 +116,14 @@ class SymbolicFunction:
             'broadcast': broadcast,
             'out_shape': self.out.shape,
             'signature': comma_join(self.args.keys()),
-            'args': [dict(arg_name=name, elements=self.argument_tags(arg))
-                     for name, arg in self.args.items()],
+            'args': [],
             'out_elems': [dict(index=((...,) + i), expr=printer.doprint(expr))
                           for i, expr in np.ndenumerate(self.out) if expr != 0]
         }
+        for name, arg in self.args.items():
+            arg_tags = dict(arg_name=name, ndim=arg.ndim, arg_shape=arg.shape,
+                            elements=self.argument_tags(arg))
+            tags['args'].append(arg_tags)
         
         # Render and return
         return pystache.render(function_template, tags)
