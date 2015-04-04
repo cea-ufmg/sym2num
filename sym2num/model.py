@@ -40,7 +40,12 @@ class SymbolicModel(metaclass=abc.ABCMeta):
     symbol_assumptions = {'real': True}
 
     def __init__(self):
-        # Create the model variables
+        self._init_variables()
+        self._init_functions()
+        self._init_derivatives()
+    
+    def _init_variables(self):
+        '''Initialize the model variables.'''
         assumptions = self.symbol_assumptions
         self.vars = {}
         self.var_specs = {}
@@ -51,8 +56,9 @@ class SymbolicModel(metaclass=abc.ABCMeta):
                 var[index] = sympy.Symbol(element_name, **assumptions)
             self.vars[var_name] = var
             self.var_specs[var_name] = specs
-        
-        # Create the model functions
+    
+    def _init_functions(self):
+        '''Initialize the model functions.'''
         self.functions = {}
         for fname in self.function_names:
             f = getattr(self, fname)
@@ -64,8 +70,9 @@ class SymbolicModel(metaclass=abc.ABCMeta):
                 argnames = inspect.getfullargspec(f).args
             args = [(name, self.vars[name]) for name in argnames]
             self.functions[fname] = function.SymbolicFunction(f, args)
-        
-        # Add the derivatives
+    
+    def _init_derivatives(self):
+        '''Initialize model derivatives.'''
         for spec in getattr(self, 'derivatives', []):
             self.add_derivative(*spec)
     
@@ -91,10 +98,14 @@ class SymbolicModel(metaclass=abc.ABCMeta):
                 pass
         return ret
 
-    @staticmethod
-    def symbols(*args, **kwargs):
-        symbol_list = utils.flat_cat(*args, **kwargs)
-        return attrdict.AttrDict({s.name: s for s in symbol_list})
+    def symbols(self, *args, **kwargs):
+        symbol_list = utils.flat_cat(*args)
+        symbols = attrdict.AttrDict({s.name: s for s in symbol_list})
+        for argname, value in kwargs.items():
+            var = self.vars[argname]
+            for i, xi in np.ndenumerate(value):
+                symbols[var[i].name] = xi
+        return symbols
     
     def print_class(self, printer, name=None, signature=''):
         sym_name = type(self).__name__

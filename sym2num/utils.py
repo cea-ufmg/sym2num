@@ -51,6 +51,9 @@ def ndexpr_diff(ndexpr, wrt):
 
 def flat_cat(*args, **kwargs):
     '''Concatenate flattened arrays.'''
-    chain = itertools.chain(args, kwargs.values())
-    return np.concatenate([np.asanyarray(a).flatten() for a in chain])
+    chain = list(itertools.chain(args, kwargs.values()))
+    if not chain:
+        return np.array([])
+    else:
+        return np.concatenate([np.asanyarray(a).flatten() for a in chain])
 
