@@ -39,6 +39,8 @@ class NumpyPrinter(printing.str.StrPrinter):
         base, exponent = expr.args
         if exponent == 0.5:
             return '%s.sqrt(%s)' % (self.numpy, self._print(base))
+        if exponent == 1:
+            return '(%s)' % self._print(base)
         else:
             return super()._print_Pow(expr)
 

@@ -21,12 +21,16 @@ def {{name}}({{signature}}):
     # Convert arguments to ndarrays and create aliases to prevent name conflicts
     {{#args}}
     _arg_{{arg_name}} = {{numpy}}.asarray({{arg_name}})
+    {{/args}}
+    
+    # Check argument lengths
+    {{#args}}
     {{#arg_shape}}
     if _arg_{{arg_name}}.shape[-{{ndim}}:] != {{arg_shape}}:
         raise ValueError("Invalid dimensions for argument `{{arg_name}}`.")
     {{/arg_shape}}
     {{/args}}
-
+    
     # Unpack the elements of each argument
     {{#args}}
     {{#elements}}
@@ -44,8 +48,7 @@ def {{name}}({{signature}}):
     _out[{{index}}] = {{expr}}
     {{/out_elems}}
     
-    return _out
-'''
+    return _out'''
 
 
 def symbol_array(obj):
