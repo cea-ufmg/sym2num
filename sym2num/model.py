@@ -201,6 +201,17 @@ class ParametrizedModel:
         # Return the new class type
         return type(name, bases, classdict)
 
+    @classmethod
+    def pack(cls, name, d):
+        spec = np.array(cls.var_specs[name])
+        ret = np.zeros(spec.shape)
+        for index, elem_name in np.ndenumerate(spec):
+            try:
+                ret[index] = d[elem_name]
+            except KeyError:
+                pass
+        return ret
+
 
 def filterout_none(d):
     '''Returns a mapping without the values which are `None`.'''
