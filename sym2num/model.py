@@ -160,10 +160,11 @@ class ParametrizedModel:
             if np.size(spec) == 0 and name not in params:
                 self._params[name] = np.array([])
     
-    def parametrize(self, params):
+    def parametrize(self, params={}, **kwparams):
         '''Parametrize a new class instance with the given + current params.'''
         new_params = self._params.copy()
         new_params.update(params)
+        new_params.update(kwparams)
         return type(self)(new_params)
     
     def call_args(self, f, *args, **kwargs):
