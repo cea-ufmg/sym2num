@@ -21,7 +21,6 @@ def ew_diff(ndexpr, *wrt, **kwargs):
     out = np.empty_like(ndexpr, object)
     for ind, expr in np.ndenumerate(ndexpr):
         out[ind] = sympy.diff(expr, *wrt, **kwargs)
-    
     return out
 
 
@@ -31,21 +30,19 @@ def ndexpr_diff(ndexpr, wrt):
     >>> from sympy import var, sin; from numpy import array
     >>> tup = var('x,y,z')
     >>> ndexpr_diff(tup, [x,y])
-    array([[1, 0],
-           [0, 1],
-           [0, 0]], dtype=object)
+    array([[1, 0, 0],
+           [0, 1, 0]], dtype=object)
     
     >>> ndexpr_diff([x**2+2*y/z, sin(x)], (x,y))
-    array([[2*x, 2/z],
-           [cos(x), 0]], dtype=object)
+    array([[2*x, cos(x)],
+           [2/z, 0]], dtype=object)
     
     '''
     ndexpr = np.asarray(ndexpr)
     wrt = np.asarray(wrt)
-    jac = np.empty(ndexpr.shape + wrt.shape, dtype=object)
+    jac = np.empty(wrt.shape + ndexpr.shape, dtype=object)
     for i, elem in np.ndenumerate(wrt):
-        jac[(...,) + i] = ew_diff(ndexpr, elem)
-    
+        jac[i] = ew_diff(ndexpr, elem)
     return jac
 
 
