@@ -1,4 +1,10 @@
-'''Symbolic model code generation.'''
+'''Symbolic model code generation.
+
+Improvement ideas
+-----------------
+ * Use jinja2 instead of pystache.
+
+'''
 
 
 import abc
