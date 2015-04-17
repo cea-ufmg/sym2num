@@ -94,7 +94,8 @@ class SymbolicModel(metaclass=abc.ABCMeta):
         '''List of the model function names.'''
         raise NotImplementedError("Pure abstract method.")
     
-    def pack(self, name, d):
+    def pack(self, name, d={}, **kwargs):
+        d = dict(d, **kwargs)
         var = self.vars[name]
         ret = np.zeros(var.shape, dtype=object)
         for index, elem in np.ndenumerate(var):
