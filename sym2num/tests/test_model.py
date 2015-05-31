@@ -11,10 +11,10 @@ from sym2num import model, printing
 
 
 class ModelA(model.SymbolicModel):
-    var_names = ['t', 'x', 'y']
+    var_names = {'t', 'x', 'y'}
     '''Names of the model variables.'''
 
-    function_names = ['f', 'g']
+    function_names = {'f', 'g'}
     '''Names of the model functions.'''
 
     derivatives = [('df_dx', 'f', 'x'),

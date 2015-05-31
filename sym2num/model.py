@@ -25,6 +25,9 @@ class_template = '''\
 class {{name}}({{signature}}):
     """Generated code for symbolic model {{sym_name}}"""
 
+    signatures = {{{signatures}}}
+    """Model function signatures."""
+
     var_specs = {{{specs}}}
     """Specification of the model variables."""    
     {{#functions}}
@@ -66,6 +69,7 @@ class SymbolicModel(metaclass=abc.ABCMeta):
     def _init_functions(self):
         '''Initialize the model functions.'''
         self.functions = {}
+        self.signatures = {}
         for fname in self.function_names:
             f = getattr(self, fname)
             if not callable(f):
@@ -76,6 +80,7 @@ class SymbolicModel(metaclass=abc.ABCMeta):
                 argnames = inspect.getfullargspec(f).args
             args = [(name, self.vars[name]) for name in argnames]
             self.functions[fname] = function.SymbolicFunction(f, args)
+            self.signatures[fname] = argnames
     
     def _init_derivatives(self):
         '''Initialize model derivatives.'''
@@ -121,6 +126,7 @@ class SymbolicModel(metaclass=abc.ABCMeta):
         
         tags = dict(name=name, specs=self.var_specs, sym_name=sym_name)
         tags['signature'] = signature
+        tags['signatures'] = self.signatures
         tags['functions'] = [{'def': printing.indent(fsym.print_def(printer))}
                              for fsym in self.functions.values()]
         
@@ -210,9 +216,11 @@ class ParametrizedModel:
         return type(name, bases, classdict)
 
     @classmethod
-    def pack(cls, name, d):
+    def pack(cls, name, d, fill=0):
         spec = np.array(cls.var_specs[name])
-        ret = np.zeros(spec.shape)
+        fill = np.asarray(fill)
+        ret = np.zeros(fill.shape + spec.shape)
+        ret[...] = fill[(...,) + (None,) * spec.ndim]
         for index, elem_name in np.ndenumerate(spec):
             try:
                 ret[index] = d[elem_name]
