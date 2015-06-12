@@ -69,7 +69,6 @@ class SymbolicModel(metaclass=abc.ABCMeta):
     def _init_functions(self):
         '''Initialize the model functions.'''
         self.functions = {}
-        self.signatures = {}
         for fname in self.function_names:
             f = getattr(self, fname)
             if not callable(f):
@@ -80,7 +79,6 @@ class SymbolicModel(metaclass=abc.ABCMeta):
                 argnames = inspect.getfullargspec(f).args
             args = [(name, self.vars[name]) for name in argnames]
             self.functions[fname] = function.SymbolicFunction(f, args)
-            self.signatures[fname] = argnames
     
     def _init_derivatives(self):
         '''Initialize model derivatives.'''
@@ -126,7 +124,8 @@ class SymbolicModel(metaclass=abc.ABCMeta):
         
         tags = dict(name=name, specs=self.var_specs, sym_name=sym_name)
         tags['signature'] = signature
-        tags['signatures'] = self.signatures
+        tags['signatures'] = {name: list(f.args) 
+                              for name, f in self.functions.items()}
         tags['functions'] = [{'def': printing.indent(fsym.print_def(printer))}
                              for fsym in self.functions.values()]
         
