@@ -180,7 +180,7 @@ class ParametrizedModel:
         return type(self)(new_params)
     
     def call_args(self, f, *args, **kwargs):
-        fargs = inspect.getfullargspec(f).args
+        fargs = self.signatures[f.__name__]
         call_args = {k: v for k, v in self._params.items() if k in fargs}
         call_args.update(filterout_none(kwargs))
         call_args.update(filterout_none(zip(fargs, args)))
