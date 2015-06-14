@@ -39,8 +39,13 @@ def {{name}}({{signature}}):
 
     {{/args}}
     # Broadcast the input arguments
+    {{^single_arg}}
     _broadcast = {{numpy}}.broadcast({{broadcast}})
     _base_shape = _broadcast.shape
+    {{/single_arg}}
+    {{#single_arg}}
+    _base_shape = {{broadcast}}.shape
+    {{/single_arg}}
     _out = {{numpy}}.zeros(_base_shape + {{out_shape}})
 
     # Assign the nonzero elements of the output
@@ -75,7 +80,7 @@ def symbol_array(obj):
 
 
 class SymbolicFunction:
-    def __init__(self, f, args=[], name=None):
+    def __init__(self, f, args={}, name=None):
         # Process and save the input arguments
         arg_items = args.items() if isinstance(args, colabc.Mapping) else args
         arg_items = [(name, symbol_array(arg)) for name, arg in arg_items]
@@ -117,6 +122,7 @@ class SymbolicFunction:
             'name': self.name,
             'numpy': printer.numpy,
             'broadcast': broadcast,
+            'single_arg': len(self.args) == 1,
             'out_shape': self.out.shape,
             'signature': comma_join(self.args.keys()),
             'args': [],
