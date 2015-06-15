@@ -2,7 +2,9 @@
 
 Improvement ideas
 -----------------
- * Use jinja2 instead of pystache.
+* Use jinja2 instead of pystache.
+* Add compiled code to linecache so that tracebacks can be produced, like done
+  in the `IPython.core.compilerop` module.
 
 '''
 

@@ -8,6 +8,7 @@ import keyword
 import re
 import warnings
 
+import jinja2
 import numpy as np
 import pystache
 import sympy
@@ -19,40 +20,37 @@ function_template = '''\
 def {{name}}({{signature}}):
     """Generated function `{{name}}` from sympy ndarray expression."""
     # Convert arguments to ndarrays and create aliases to prevent name conflicts
-    {{#args}}
-    _arg_{{arg_name}} = {{numpy}}.asarray({{arg_name}})
-    {{/args}}
+    {% for arg in args -%}
+    _arg_{{ arg.arg_name }} = {{numpy}}.asarray({{ arg.arg_name }})
+    {% endfor %}
     
     # Check argument lengths
-    {{#args}}
-    {{#arg_shape}}
-    if _arg_{{arg_name}}.shape[-{{ndim}}:] != {{arg_shape}}:
-        raise ValueError("Invalid dimensions for argument `{{arg_name}}`.")
-    {{/arg_shape}}
-    {{/args}}
+    {% for arg in args -%}
+    {% if arg.arg_shape -%}
+    if _arg_{{arg.arg_name}}.shape[-{{arg.ndim}}:] != {{arg.arg_shape}}:
+        raise ValueError("Invalid dimensions for argument `{{arg.arg_name}}`.")
+    {% endif -%}
+    {% endfor %}
     
     # Unpack the elements of each argument
-    {{#args}}
-    {{#elements}}
-    {{elem_name}} = _arg_{{arg_name}}[{{elem_index}}]
-    {{/elements}}
-
-    {{/args}}
+    {% for arg in args -%}
+    {% for element in arg.elements -%}
+    {{element.elem_name}} = _arg_{{arg.arg_name}}[{{element.elem_index}}]
+    {% endfor %}
+    {% endfor %}
     # Broadcast the input arguments
-    {{^single_arg}}
+    {% if single_arg -%}
+    _base_shape = {{broadcast}}.shape
+    {% else -%}
     _broadcast = {{numpy}}.broadcast({{broadcast}})
     _base_shape = _broadcast.shape
-    {{/single_arg}}
-    {{#single_arg}}
-    _base_shape = {{broadcast}}.shape
-    {{/single_arg}}
+    {% endif -%}
     _out = {{numpy}}.zeros(_base_shape + {{out_shape}})
 
     # Assign the nonzero elements of the output
-    {{#out_elems}}
-    _out[{{index}}] = {{expr}}
-    {{/out_elems}}
-    
+    {% for element in out_elems -%}
+    _out[{{element.index}}] = {{element.expr}}
+    {% endfor %}
     return _out'''
 
 
@@ -135,7 +133,7 @@ class SymbolicFunction:
             tags['args'].append(arg_tags)
         
         # Render and return
-        return pystache.render(function_template, tags)
+        return jinja2.Template(function_template).render(tags)
     
     def diff(self, wrt, name):
         diff = utils.ndexpr_diff(self.out, wrt)
