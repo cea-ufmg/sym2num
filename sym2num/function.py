@@ -17,40 +17,41 @@ from . import utils
 
 
 function_template = '''\
-def {{name}}({{signature}}):
-    """Generated function `{{name}}` from sympy ndarray expression."""
+def {{symfun.name}}({{symfun.args | join(', ')}}):
+    """Generated function `{{symfun.name}}` from sympy ndarray expression."""
     # Convert arguments to ndarrays and create aliases to prevent name conflicts
-    {% for arg in args -%}
-    _arg_{{ arg.arg_name }} = {{numpy}}.asarray({{ arg.arg_name }})
+    {% for argname in symfun.args -%}
+    _{{argname}}_asarray = {{printer.numpy}}.asarray({{argname}})
     {% endfor %}
-    
     # Check argument lengths
-    {% for arg in args -%}
-    {% if arg.arg_shape -%}
-    if _arg_{{arg.arg_name}}.shape[-{{arg.ndim}}:] != {{arg.arg_shape}}:
-        raise ValueError("Invalid dimensions for argument `{{arg.arg_name}}`.")
+    {% for argname, arg in symfun.args.items() -%}
+    {% if arg.shape -%}
+    if _{{argname}}_asarray.shape[-{{arg.ndim}}:] != {{arg.shape}}:
+        raise ValueError("Invalid dimensions for argument `{{arg_name}}`.")
     {% endif -%}
     {% endfor %}
-    
     # Unpack the elements of each argument
-    {% for arg in args -%}
-    {% for element in arg.elements -%}
-    {{element.elem_name}} = _arg_{{arg.arg_name}}[{{element.elem_index}}]
-    {% endfor %}
+    {% for argname, arg in symfun.args.items() -%}
+    {% for index, element in np.ndenumerate(arg) -%}
+    {%- set fullindex = ('...',) + index -%}
+    {{element}} = _{{argname}}_asarray[{{fullindex | join(', ')}}]
+    {% endfor -%}
     {% endfor %}
     # Broadcast the input arguments
-    {% if single_arg -%}
-    _base_shape = {{broadcast}}.shape
-    {% else -%}
-    _broadcast = {{numpy}}.broadcast({{broadcast}})
+    {% if broadcast_len > 1 -%}
+    _broadcast = {{printer.numpy}}.broadcast({{broadcast | join(', ')}})
     _base_shape = _broadcast.shape
+    {% elif broadcast_len == 1 -%}
+    _base_shape = {{broadcast[0]}}.shape
+    {% else -%}
+    _base_shape = ()
     {% endif -%}
-    _out = {{numpy}}.zeros(_base_shape + {{out_shape}})
+    _out = {{printer.numpy}}.zeros(_base_shape + {{out_shape}})
 
     # Assign the nonzero elements of the output
     {% for element in out_elems -%}
     _out[{{element.index}}] = {{element.expr}}
-    {% endfor %}
+    {% endfor -%}
     return _out'''
 
 
@@ -112,25 +113,17 @@ class SymbolicFunction:
                 raise ValueError(msg.format(elem.name))
         
         # Create the template substitution tags
-        broadcast = comma_join(
-            a.flat[0] for a in self.args.values() if a.size > 0
-        )
-        
+        broadcast = [a.flat[0] for a in self.args.values() if a.size > 0]
         tags = {
-            'name': self.name,
-            'numpy': printer.numpy,
+            'symfun': self,
+            'printer': printer,
+            'np': np,
             'broadcast': broadcast,
-            'single_arg': len(self.args) == 1,
+            'broadcast_len': len(broadcast),
             'out_shape': self.out.shape,
-            'signature': comma_join(self.args.keys()),
-            'args': [],
             'out_elems': [dict(index=((...,) + i), expr=printer.doprint(expr))
                           for i, expr in np.ndenumerate(self.out) if expr != 0]
         }
-        for name, arg in self.args.items():
-            arg_tags = dict(arg_name=name, ndim=arg.ndim, arg_shape=arg.shape,
-                            elements=self.argument_tags(arg))
-            tags['args'].append(arg_tags)
         
         # Render and return
         return jinja2.Template(function_template).render(tags)

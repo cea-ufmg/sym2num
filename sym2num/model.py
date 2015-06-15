@@ -2,7 +2,6 @@
 
 Improvement ideas
 -----------------
-* Use jinja2 instead of pystache.
 * Add compiled code to linecache so that tracebacks can be produced, like done
   in the `IPython.core.compilerop` module.
 
@@ -17,26 +16,25 @@ import types
 
 import attrdict
 import numpy as np
-import pystache
+import jinja2
 import sympy
 
-from . import function, printing, utils
+from . import function, utils
 
 
 class_template = '''\
 class {{name}}({{signature}}):
     """Generated code for symbolic model {{sym_name}}"""
 
-    signatures = {{{signatures}}}
+    signatures = {{signatures}}
     """Model function signatures."""
 
-    var_specs = {{{specs}}}
+    var_specs = {{specs}}
     """Specification of the model variables."""    
-    {{#functions}}
-
+    {% for function in functions %}
     @staticmethod
-{{{def}}}
-    {{/functions}}
+    {{ function | indent}}
+    {% endfor -%}
 '''
 
 
@@ -128,10 +126,10 @@ class SymbolicModel(metaclass=abc.ABCMeta):
         tags['signature'] = signature
         tags['signatures'] = {name: list(f.args) 
                               for name, f in self.functions.items()}
-        tags['functions'] = [{'def': printing.indent(fsym.print_def(printer))}
+        tags['functions'] = [fsym.print_def(printer)
                              for fsym in self.functions.values()]
         
-        return pystache.render(class_template, tags)
+        return jinja2.Template(class_template).render(tags)
     
     def add_derivative(self, name, fname, wrt_names):
         if isinstance(wrt_names, str):

@@ -67,11 +67,3 @@ class ScipyPrinter(NumpyPrinter):
     def _print_loggamma(self, expr):
         return '%s.special.gammaln(%s)' % (self.scipy,self._print(expr.args[0]))
 
-
-indent_re = re.compile('^', flags=re.MULTILINE)
-four_spaces = 4 * ' '
-
-def indent(text, prefix=four_spaces):
-    '''Indent a multiline string.'''
-    return indent_re.sub(prefix, text)
-
