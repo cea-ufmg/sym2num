@@ -222,7 +222,7 @@ class ParametrizedModel:
         ret[...] = fill[(...,) + (None,) * spec.ndim]
         for index, elem_name in np.ndenumerate(spec):
             try:
-                ret[index] = d[elem_name]
+                ret[..., index] = d[elem_name]
             except KeyError:
                 pass
         return ret
