@@ -33,10 +33,18 @@ def {{symfun.name}}({{symfun.args | join(', ')}}):
     # Unpack the elements of each argument
     {% for argname, arg in symfun.args.items() -%}
     {% for index, element in np.ndenumerate(arg) -%}
+    {% if element in free_symbols or element in broadcast -%}
     {%- set fullindex = ('...',) + index -%}
     {{element}} = _{{argname}}_asarray[{{fullindex | join(', ')}}]
+    {% endif -%}
     {% endfor -%}
     {% endfor %}
+    {% if cse_subs -%}
+    # Calculate the common subexpressions
+    {% for cse_symbol, cse_expr in cse_subs -%}
+    {{cse_symbol}} = {{printer.doprint(cse_expr)}}
+    {% endfor %}
+    {% endif %}
     # Broadcast the input arguments
     {% if broadcast_len > 1 -%}
     _broadcast = {{printer.numpy}}.broadcast({{broadcast | join(', ')}})
@@ -46,11 +54,12 @@ def {{symfun.name}}({{symfun.args | join(', ')}}):
     {% else -%}
     _base_shape = ()
     {% endif -%}
-    _out = {{printer.numpy}}.zeros(_base_shape + {{out_shape}})
+    _out = {{printer.numpy}}.zeros(_base_shape + {{out.shape}})
 
     # Assign the nonzero elements of the output
-    {% for element in out_elems -%}
-    _out[{{element.index}}] = {{element.expr}}
+    {% for index, expr in np.ndenumerate(out) -%}
+    {%- set fullindex = ('...',) + index -%}
+    _out[{{fullindex | join(', ')}}] = {{printer.doprint(expr)}}
     {% endfor -%}
     return _out'''
 
@@ -86,6 +95,12 @@ class SymbolicFunction:
         self.args = collections.OrderedDict(arg_items)
         self.out = np.asarray(f(*self.args.values()) if callable(f) else f)
         self.name = name or (f.__name__ if callable(f) else None)
+
+        # Get the free symbols of the output        
+        self.free_symbols = set()
+        for expr in self.out.flat:
+            if isinstance(expr, sympy.Expr):
+                self.free_symbols.update(expr.free_symbols)
         
         # Check if a valid name was found
         if name is None and not callable(f):
@@ -106,17 +121,22 @@ class SymbolicFunction:
                 msg = "Function argument {} conflicts with printer module."
                 raise ValueError(msg.format(elem.name))
         
+        cse_symbols = sympy.numbered_symbols('_cse')
+        cse_subs, cse_exprs = sympy.cse(self.out.flat, cse_symbols)
+        cse_out = np.zeros_like(self.out)
+        cse_out.flat = cse_exprs
+        
         # Create the template substitution tags
         broadcast = [a.flat[0] for a in self.args.values() if a.size > 0]
         tags = {
             'symfun': self,
             'printer': printer,
             'np': np,
+            'free_symbols': self.free_symbols,
+            'cse_subs': cse_subs,
             'broadcast': broadcast,
             'broadcast_len': len(broadcast),
-            'out_shape': self.out.shape,
-            'out_elems': [dict(index=((...,) + i), expr=printer.doprint(expr))
-                          for i, expr in np.ndenumerate(self.out) if expr != 0]
+            'out': cse_out
         }
         
         # Render and return
