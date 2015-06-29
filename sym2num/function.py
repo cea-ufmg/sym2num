@@ -43,7 +43,7 @@ def {{symfun.name}}({{symfun.args | join(', ')}}):
     # Calculate the common subexpressions
     {% for cse_symbol, cse_expr in cse_subs -%}
     {{cse_symbol}} = {{printer.doprint(cse_expr)}}
-    {% endfor %}
+    {% endfor -%}
     {% endif %}
     # Broadcast the input arguments
     {% if broadcast_len > 1 -%}
