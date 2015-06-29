@@ -39,12 +39,12 @@ def {{symfun.name}}({{symfun.args | join(', ')}}):
     {% endif -%}
     {% endfor -%}
     {% endfor %}
-    {% if cse_subs -%}
+    {%- if cse_subs %}
     # Calculate the common subexpressions
     {% for cse_symbol, cse_expr in cse_subs -%}
     {{cse_symbol}} = {{printer.doprint(cse_expr)}}
     {% endfor -%}
-    {% endif %}
+    {%- endif %}
     # Broadcast the input arguments
     {% if broadcast_len > 1 -%}
     _broadcast = {{printer.numpy}}.broadcast({{broadcast | join(', ')}})
@@ -57,7 +57,7 @@ def {{symfun.name}}({{symfun.args | join(', ')}}):
     _out = {{printer.numpy}}.zeros(_base_shape + {{out.shape}})
 
     # Assign the nonzero elements of the output
-    {% for index, expr in np.ndenumerate(out) -%}
+    {% for index, expr in np.ndenumerate(out) if expr != 0 -%}
     {%- set fullindex = ('...',) + index -%}
     _out[{{fullindex | join(', ')}}] = {{printer.doprint(expr)}}
     {% endfor -%}
@@ -122,7 +122,8 @@ class SymbolicFunction:
                 raise ValueError(msg.format(elem.name))
         
         cse_symbols = sympy.numbered_symbols('_cse')
-        cse_subs, cse_exprs = sympy.cse(self.out.flat, cse_symbols)
+        cse_in = [sympy.sympify(expr) for expr in self.out.flat]
+        cse_subs, cse_exprs = sympy.cse(cse_in, cse_symbols)
         cse_out = np.zeros_like(self.out)
         cse_out.flat = cse_exprs
         
