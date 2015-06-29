@@ -99,12 +99,6 @@ class SymbolicFunction:
         if len(unique_arg_elements) != arg_elements.size:
             raise ValueError('Duplicate symbols found in function arguments.')
     
-    def argument_tags(self, arg):
-        return [
-            dict(elem_index=((...,) + index), elem_name=elem.name)
-            for (index, elem) in np.ndenumerate(arg)
-        ]
-    
     def print_def(self, printer):
         # Check for conflicts between function and printer symbols
         for elem in utils.flat_cat(**self.args):
@@ -131,8 +125,4 @@ class SymbolicFunction:
     def diff(self, wrt, name):
         diff = utils.ndexpr_diff(self.out, wrt)
         return type(self)(diff, args=self.args, name=name)
-
-
-def comma_join(iterable):
-    return ", ".join(str(x) for x in iterable)
 
