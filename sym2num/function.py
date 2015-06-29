@@ -120,7 +120,8 @@ class SymbolicFunction:
             if elem.name in printer.modules:
                 msg = "Function argument {} conflicts with printer module."
                 raise ValueError(msg.format(elem.name))
-        
+
+        # Perform common subexpression elimination
         cse_symbols = sympy.numbered_symbols('_cse')
         cse_in = [sympy.sympify(expr) for expr in self.out.flat]
         cse_subs, cse_exprs = sympy.cse(cse_in, cse_symbols)
