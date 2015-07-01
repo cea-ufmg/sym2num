@@ -1,4 +1,4 @@
-'''Sympy numeric function generation.'''
+"""Sympy numeric function generation."""
 
 
 import collections

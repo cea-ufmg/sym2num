@@ -1,11 +1,11 @@
-'''Symbolic model code generation.
+"""Symbolic model code generation.
 
 Improvement ideas
 -----------------
 * Add compiled code to linecache so that tracebacks can be produced, like done
   in the `IPython.core.compilerop` module.
 
-'''
+"""
 
 
 import abc
@@ -23,14 +23,18 @@ from . import function, utils
 
 
 class_template = '''\
-class {{name}}({{signature}}):
+class {{name}}({{class_signature}}):
     """Generated code for symbolic model {{sym_name}}"""
 
     signatures = {{signatures}}
     """Model function signatures."""
 
     var_specs = {{specs}}
-    """Specification of the model variables."""    
+    """Specification of the model variables."""
+    {% for name, value in sparse_inds.items() %}
+    {{name}}_ind = {{value}}
+    """Nonzero indices of `{{name}}`."""
+    {% endfor -%}
     {% for function in functions %}
     @staticmethod
     {{ function | indent}}
@@ -52,9 +56,10 @@ class SymbolicModel(metaclass=abc.ABCMeta):
         self._init_variables()
         self._init_functions()
         self._init_derivatives()
+        self._init_sparse()
     
     def _init_variables(self):
-        '''Initialize the model variables.'''
+        """Initialize the model variables."""
         assumptions = self.symbol_assumptions
         self.vars = {}
         self.var_specs = {}
@@ -67,7 +72,7 @@ class SymbolicModel(metaclass=abc.ABCMeta):
             self.var_specs[var_name] = specs
     
     def _init_functions(self):
-        '''Initialize the model functions.'''
+        """Initialize the model functions."""
         self.functions = {}
         for fname in self.function_names:
             f = getattr(self, fname)
@@ -81,20 +86,35 @@ class SymbolicModel(metaclass=abc.ABCMeta):
             self.functions[fname] = function.SymbolicFunction(f, args)
     
     def _init_derivatives(self):
-        '''Initialize model derivatives.'''
+        """Initialize model derivatives."""
         for spec in getattr(self, 'derivatives', []):
             self.add_derivative(*spec)
+    
+    def _init_sparse(self):
+        """Initialize the sparse functions."""
+        self.sparse_inds = {}
+        for spec in getattr(self, 'sparse', []):
+            if isinstance(spec, str):
+                fname = spec
+                selector = lambda *ind: ind
+            else:
+                fname, selector = spec
+            f = self.functions[fname]
+            ind = selector(*np.nonzero(f.out))
+            fval = function.SymbolicFunction(f.out[ind], f.args, fname + '_val')
+            self.functions[fval.name] = fval
+            self.sparse_inds[fname] = np.c_[ind].T.tolist()
     
     @property
     @abc.abstractmethod
     def var_names(self):
-        '''List of the model variable names.'''
+        """List of the model variable names."""
         raise NotImplementedError("Pure abstract method.")
 
     @property
     @abc.abstractmethod
     def function_names(self):
-        '''List of the model function names.'''
+        """List of the model function names."""
         raise NotImplementedError("Pure abstract method.")
     
     def pack(self, name, d={}, **kwargs):
@@ -122,8 +142,13 @@ class SymbolicModel(metaclass=abc.ABCMeta):
         if name is None:
             name = sym_name
         
-        tags = dict(name=name, specs=self.var_specs, sym_name=sym_name)
-        tags['signature'] = signature
+        tags = dict(
+            name=name, 
+            specs=self.var_specs, 
+            sym_name=sym_name,
+            class_signature=signature,
+            sparse_inds=self.sparse_inds,
+        )
         tags['signatures'] = {name: list(f.args) 
                               for name, f in self.functions.items()}
         tags['functions'] = [fsym.print_def(printer)
@@ -173,7 +198,7 @@ class ParametrizedModel:
                 self._params[name] = np.array([])
     
     def parametrize(self, params={}, **kwparams):
-        '''Parametrize a new class instance with the given + current params.'''
+        """Parametrize a new class instance with the given + current params."""
         new_params = self._params.copy()
         new_params.update(params)
         new_params.update(kwparams)
@@ -229,7 +254,7 @@ class ParametrizedModel:
 
 
 def filterout_none(d):
-    '''Returns a mapping without the values which are `None`.'''
+    """Returns a mapping without the values which are `None`."""
     items = d.items() if isinstance(d, collections.abc.Mapping) else d
     return {k: v for k, v in items if v is not None}
 
