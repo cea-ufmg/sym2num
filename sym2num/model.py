@@ -23,7 +23,7 @@ from . import function, utils
 
 
 class_template = '''\
-class {{name}}({{class_signature}}):
+class {{generated_name}}({{class_signature}}):
     """Generated code for symbolic model {{sym_name}}"""
 
     signatures = {{signatures}}
@@ -117,6 +117,28 @@ class SymbolicModel(metaclass=abc.ABCMeta):
         """List of the model function names."""
         raise NotImplementedError("Pure abstract method.")
     
+    @property
+    def imports(self):
+        meta = getattr(self, 'meta', None)
+        if meta is None:
+            return ()
+        else:
+            return ('import ' + meta.__module__,)
+    
+    @property
+    def generated_name(self):
+        """Name of generated class."""
+        return type(self).__name__
+    
+    @property
+    def class_signature(self):
+        """Generated model class signature with metaclass definition."""
+        meta = getattr(self, 'meta', None)
+        if meta is None:
+            return ''
+        else:
+            return 'metaclass={}.{}'.format(meta.__module__, meta.__qualname__)
+    
     def pack(self, name, d={}, **kwargs):
         d = dict(d, **kwargs)
         var = self.vars[name]
@@ -127,7 +149,7 @@ class SymbolicModel(metaclass=abc.ABCMeta):
             except KeyError:
                 pass
         return ret
-
+    
     def symbols(self, *args, **kwargs):
         symbol_list = utils.flat_cat(*args)
         symbols = attrdict.AttrDict({s.name: s for s in symbol_list})
@@ -137,24 +159,24 @@ class SymbolicModel(metaclass=abc.ABCMeta):
                 symbols[var[i].name] = xi
         return symbols
     
-    def print_class(self, printer, name=None, signature=''):
-        sym_name = type(self).__name__
-        if name is None:
-            name = sym_name
-        
+    def print_class(self, printer):
         tags = dict(
-            name=name, 
+            generated_name=self.generated_name, 
             specs=self.var_specs, 
-            sym_name=sym_name,
-            class_signature=signature,
+            sym_name=type(self).__name__,
+            class_signature=self.class_signature,
             sparse_inds=self.sparse_inds,
         )
         tags['signatures'] = {name: list(f.args) 
                               for name, f in self.functions.items()}
         tags['functions'] = [fsym.print_def(printer)
                              for fsym in self.functions.values()]
-        
         return jinja2.Template(class_template).render(tags)
+
+    def print_module(self, printer):
+        imports = '\n'.join(printer.imports + self.imports)
+        class_code = self.print_class(printer)
+        return '{}\n\n{}'.format(imports, class_code)
     
     def add_derivative(self, name, fname, wrt_names):
         if isinstance(wrt_names, str):
@@ -167,24 +189,11 @@ class SymbolicModel(metaclass=abc.ABCMeta):
         self.functions[name] = f
 
 
-def class_obj(sym, printer, context=None, name=None, meta=None):
-    # Get the default arguments if none were given
-    if name is None:
-        name = type(sym).__name__
-    if context is None:
-        context = {}
-    if meta is None:
-        signature = ''
-    else:
-        signature = 'metaclass=_generation_meta'
-        context['_generation_meta'] = meta
-    
-    # Load the printer imports and execute the model class code
-    imports = '\n'.join(printer.imports)
-    class_code = sym.print_class(printer, name=name, signature=signature)
-    exec(imports, context)
-    exec(class_code, context)
-    return context[name]
+def class_obj(model, printer):
+    code = model.print_module(printer)
+    context = {}
+    exec(code, context)
+    return context[model.generated_name]
 
 
 class ParametrizedModel:

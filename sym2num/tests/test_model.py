@@ -65,7 +65,7 @@ def test_generated(printer, seed):
     a = ModelA()
     
     # Generate code and instantiate generated model
-    A = model.class_obj(a, printer, name='A')
+    A = model.class_obj(a, printer)
     generated = A()
     
     # Create symbolic substitution tags and numerical values for model variables

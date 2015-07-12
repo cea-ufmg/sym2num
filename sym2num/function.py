@@ -144,6 +144,11 @@ class SymbolicFunction:
         # Render and return
         return jinja2.Template(function_template).render(tags)
     
+    def print_module(self, printer):
+        imports = '\n'.join(printer.imports)
+        def_code = self.print_def(printer)
+        return '{}\n\n{}'.format(imports, def_code)
+    
     def diff(self, wrt, name):
         diff = utils.ndexpr_diff(self.out, wrt)
         return type(self)(diff, args=self.args, name=name)
