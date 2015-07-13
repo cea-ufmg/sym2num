@@ -27,7 +27,7 @@ def {{symfun.name}}({{symfun.args | join(', ')}}):
     {% for argname, arg in symfun.args.items() -%}
     {% if arg.shape -%}
     if _{{argname}}_asarray.shape[-{{arg.ndim}}:] != {{arg.shape}}:
-        raise ValueError("Invalid dimensions for argument `{{arg_name}}`.")
+        raise ValueError("Invalid dimensions for argument `{{argname}}`.")
     {% endif -%}
     {% endfor %}
     # Unpack the elements of each argument
