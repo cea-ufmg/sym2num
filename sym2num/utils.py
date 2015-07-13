@@ -42,7 +42,8 @@ def ndexpr_diff(ndexpr, wrt):
     wrt = np.asarray(wrt)
     jac = np.empty(wrt.shape + ndexpr.shape, dtype=object)
     for i, elem in np.ndenumerate(wrt):
-        jac[i] = ew_diff(ndexpr, elem)
+        diff = ew_diff(ndexpr, elem)
+        jac[i] = diff if diff.shape else diff[()]
     return jac
 
 
