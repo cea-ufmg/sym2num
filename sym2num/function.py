@@ -124,9 +124,13 @@ class SymbolicFunction:
         # Perform common subexpression elimination
         cse_symbols = sympy.numbered_symbols('_cse')
         cse_in = [sympy.sympify(expr) for expr in self.out.flat]
-        cse_subs, cse_exprs = sympy.cse(cse_in, cse_symbols)
-        cse_out = np.zeros_like(self.out)
-        cse_out.flat = cse_exprs
+        if cse_in:
+            cse_subs, cse_exprs = sympy.cse(cse_in, cse_symbols)
+            out = np.zeros_like(self.out)
+            out.flat = cse_exprs
+        else:
+            cse_subs = []
+            out = self.out
         
         # Create the template substitution tags
         broadcast = [a.flat[0] for a in self.args.values() if a.size > 0]
@@ -138,7 +142,7 @@ class SymbolicFunction:
             'cse_subs': cse_subs,
             'broadcast': broadcast,
             'broadcast_len': len(broadcast),
-            'out': cse_out
+            'out': out
         }
         
         # Render and return

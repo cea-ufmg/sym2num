@@ -96,14 +96,16 @@ class SymbolicModel(metaclass=abc.ABCMeta):
         for spec in getattr(self, 'sparse', []):
             if isinstance(spec, str):
                 fname = spec
-                selector = lambda *ind: ind
+                selector = lambda *inds: np.ones_like(inds[0], dtype=bool)
             else:
                 fname, selector = spec
             f = self.functions[fname]
-            ind = selector(*np.nonzero(f.out))
-            fval = function.SymbolicFunction(f.out[ind], f.args, fname + '_val')
-            self.functions[fval.name] = fval
-            self.sparse_inds[fname] = np.c_[ind].T.tolist()
+            inds = np.nonzero(f.out)
+            inds = [ind[selector(*inds)] for ind in inds]
+            fval = f.out[inds]
+            fobj = function.SymbolicFunction(fval, f.args, fname + '_val')
+            self.functions[fobj.name] = fobj
+            self.sparse_inds[fname] = tuple(ind.tolist() for ind in inds)
     
     @property
     @abc.abstractmethod
