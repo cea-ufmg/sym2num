@@ -10,7 +10,6 @@ import warnings
 
 import jinja2
 import numpy as np
-import pystache
 import sympy
 
 from . import utils
