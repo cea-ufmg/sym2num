@@ -122,9 +122,7 @@ class SymbolicModel(metaclass=abc.ABCMeta):
     @property
     def imports(self):
         meta = getattr(self, 'meta', None)
-        if meta is None:
-            return ()
-        else:
+        if callable(meta):
             return ('import ' + meta.__module__,)
     
     @property
@@ -138,6 +136,8 @@ class SymbolicModel(metaclass=abc.ABCMeta):
         meta = getattr(self, 'meta', None)
         if meta is None:
             return ''
+        elif isinstance(meta, str):
+            return 'metaclass=' + meta
         else:
             return 'metaclass={}.{}'.format(meta.__module__, meta.__qualname__)
     
