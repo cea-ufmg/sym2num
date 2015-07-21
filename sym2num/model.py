@@ -124,6 +124,8 @@ class SymbolicModel(metaclass=abc.ABCMeta):
         meta = getattr(self, 'meta', None)
         if callable(meta):
             return ('import ' + meta.__module__,)
+        else:
+            return ()
     
     @property
     def generated_name(self):
