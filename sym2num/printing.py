@@ -26,8 +26,26 @@ class NumpyPrinter(printing.str.StrPrinter):
     def imports(self):
         return ('import numpy as {}'.format(self.numpy),)
     
+    def _print_acos(self, expr):
+        return '%s.arccos(%s)' % (self.numpy, self._print(expr.args[0]))
+
+    def _print_asin(self, expr):
+        return '%s.arcsin(%s)' % (self.numpy, self._print(expr.args[0]))
+
+    def _print_atan(self, expr):
+        return '%s.arctan(%s)' % (self.numpy, self._print(expr.args[0]))
+
     def _print_atan2(self, expr):
         return '%s.arctan2(%s)' % (self.numpy, self.stringify(expr.args, ', '))
+        
+    def _print_acosh(self, expr):
+        return '%s.arccosh(%s)' % (self.numpy, self._print(expr.args[0]))
+
+    def _print_asinh(self, expr):
+        return '%s.arcsinh(%s)' % (self.numpy, self._print(expr.args[0]))
+
+    def _print_atanh(self, expr):
+        return '%s.arctanh(%s)' % (self.numpy, self._print(expr.args[0]))
     
     def _print_Function(self, expr):
         return '%s.%s' % (self.numpy, super()._print_Function(expr))
@@ -40,7 +58,7 @@ class NumpyPrinter(printing.str.StrPrinter):
         if exponent == 0.5:
             return '%s.sqrt(%s)' % (self.numpy, self._print(base))
         if exponent == -0.5:
-            return '1/%s.sqrt(%s)' % (self.numpy, self._print(base))
+            return '(1/%s.sqrt(%s))' % (self.numpy, self._print(base))
         if exponent == 1:
             return '(%s)' % self._print(base)
         else:
