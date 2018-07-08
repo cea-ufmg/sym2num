@@ -1,11 +1,28 @@
 '''Sympy numerical code generation utilities.'''
 
 
+import functools
 import itertools
 import re
 
 import numpy as np
 import sympy
+
+
+try:
+    from cached_property import cached_property
+except ModuleNotFoundError:
+    def cached_property(f):
+        """On-demand property which is calculated only once and memorized."""
+        return property(functools.lru_cache()(f))
+
+
+def cached_static_property(f):
+    return property(staticmethod(functools.lru_cache()(f)))
+
+
+def init_static_variable(f):
+    return f()
 
 
 def ew_diff(ndexpr, *wrt, **kwargs):

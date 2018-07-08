@@ -15,6 +15,36 @@ import sympy
 from . import utils
 
 
+function_template_src = '''\
+def {{function.name}}({{function.argument_names | join(', ')}}
+    pass
+'''
+
+class NumpyFunction:
+    """Generates numpy code for symbolic array functions."""
+    
+    def __init__(self, output, name, arguments, **options):
+        self.output = output
+        """Symbolic expression of the function's output."""
+        
+        self.name = name
+        """Generated function name."""
+        
+        self.arguments = arguments
+        """Ordered dict of sym2num Variables with the function arguments."""
+        
+        self.options = options
+        """Symbolic code generation options."""
+    
+    @utils.cached_property
+    def argument_names(self):
+        return self.arguments.keys()
+    
+    def code(self):
+        """Print the function definition code."""
+        
+
+
 function_template = '''\
 def {{symfun.name}}({{symfun.args | join(', ')}}):
     """Generated function `{{symfun.name}}` from sympy ndarray expression."""
