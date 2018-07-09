@@ -10,6 +10,7 @@ Improvement ideas
 
 import abc
 import collections.abc
+import functools
 import inspect
 import re
 import types
@@ -271,3 +272,19 @@ def filterout_none(d):
     items = d.items() if isinstance(d, collections.abc.Mapping) else d
     return {k: v for k, v in items if v is not None}
 
+
+def symbols_from(names):
+    name_list = [name.strip() for name in names.split(',')]
+    
+    def decorator(f):
+        @functools.wraps(f)
+        def wrapper(self, *args):
+            if len(args) != len(name_list):
+                msg = "{} takes {} arguments ({} given)"
+                raise TypeError(msg.format(f.__name__,len(name_list),len(args)))
+            a = attrdict.AttrDict()
+            for name, arg in zip(name_list, args):
+                a.update(self.variables[name].symbols(arg))
+            return f(self, a)
+        return wrapper
+    return decorator

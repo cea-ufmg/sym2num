@@ -26,21 +26,42 @@ class Variable:
     
 
 class SymbolArray(Variable, sympy.Array):
-    """An array of symbols for code generation."""
+    """Represents array of symbols for code generation."""
     
     default_assumptions = dict(real=True)
     """Default assumptions for underlying symbols."""
-
-    def __new__(cls, array_like, shape=None):
-        #If only an array_like of `str` is given, make symbols out of it
-        if shape is None:
-            elements, shape = elements_and_shape(array_like)
-            if all(isstr(e) for e in elements):
-                array_like = [
-                    sympy.Symbol(n, *cls.default_assumptions) for n in elements
-                ]
+    
+    def __new__(cls, array_like):
+        elements, shape = elements_and_shape(array_like)
+        if all(isstr(e) for e in elements):
+            elements = [
+                sympy.Symbol(n, *cls.default_assumptions) for n in elements
+            ]
+        
+        if len(set(elements)) != len(elements):
+            raise ValueError("elements of SymbolArray must be unique")
+        
         obj = super().__new__(cls, array_like, shape)
         return obj
+    
+    def __str__(self):
+        """Overrides `sympy.Array.__str__` which fails for rank-0 Arrays"""
+        if self.shape == ():
+            return repr(self[()])
+        else:
+            return super().__str__()
+
+    def symbols(self, value):
+        value_array = sympy.Array(value)
+        if self.shape != value_array.shape:
+            msg = "Invalid shape for argument, expected {} and got {}"
+            raise ValueError(msg.format(self.shape, value_array.shape))
+        
+        symbols = {}
+        for i in np.ndindex(*self.shape):
+            name = self[i].name
+            symbols[name] = value_array[i]
+        return symbols
 
 
 def elements_and_shape(array_like):
@@ -55,7 +76,7 @@ def elements_and_shape(array_like):
     #We have an iterable, apply self to its elements
     subelements, subshapes = zip(*[elements_and_shape(e) for e in array_like])
     
-    #Check for inconsistent size of subelements
+    #Check if all subelements have the same shape
     if len(set(subshapes)) != 1:
         raise ValueError("could not determine shape unambiguously")
     
