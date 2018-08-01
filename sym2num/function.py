@@ -19,7 +19,7 @@ numpy_function_template_src = '''\
 def {{f.name}}({{f.argument_names | join(', ')}})
     """Generated function `{{f.name}}` from sympy Array expression."""
     {%- for arg in f.arguments %}
-    {{arg.name}}
+    {{ arg.print_prepare_validate(printer) | indent}}
     {%- endfor %}
 
     pass

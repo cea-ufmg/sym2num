@@ -2,10 +2,13 @@
 
 
 import collections
+import inspect
 import keyword
 
 import numpy as np
 import sympy
+
+from . import utils
 
 
 class Variable:
@@ -20,10 +23,7 @@ class Variable:
 class SymbolArray(Variable, sympy.Array):
     """Represents array of symbols for code generation."""
     
-    default_assumptions = dict(real=True)
-    """Default assumptions for underlying symbols."""
-    
-    def __new__(cls, name, array_like):
+    def __new__(cls, name, array_like, dtype='float64'):
         elements, shape = elements_and_shape(array_like)
         if all(isstr(e) for e in elements):
             elements = [
@@ -36,14 +36,19 @@ class SymbolArray(Variable, sympy.Array):
         obj = super().__new__(cls, array_like, shape)
         return obj
     
-    def __init__(self, name, array_like):
+    def __init__(self, name, array_like, dtype='float64'):
         if not isinstance(name, str):
             raise TypeError("expected str, but got {!r}".format(type(name)))
         if not isidentifier(name):
-            raise ValueError("'{}' is not a valid python identifier")
+            raise ValueError(
+                "'{}' is not a valid python identifier".format(name)
+            )
         self.name = name
         """Variable name"""
         
+        self.dtype = dtype
+        """Generated array dtype."""
+    
     def __str__(self):
         """Overrides `sympy.Array.__str__` which fails for rank-0 Arrays"""
         if self.shape == ():
@@ -62,15 +67,23 @@ class SymbolArray(Variable, sympy.Array):
             name = self[i].name
             symbols[name] = value_array[i]
         return symbols
-
+    
+    @utils.cached_class_property
+    def prepare_validate_template(cls):
+        return jinja2.Template(inspect.cleandoc("""
+        {{v.name}} = {{np}}.asarray({{v.name}}, dtype={{np}}.{{v.dtype}})
+        if {{v.name}}.shape[-{{v.ndim}}:] != {{v.shape}}:
+            {% set expected = ', '.join((...,) + v.shape -%}
+            msg = "invalid shape for {{v.name}}, expected {{expected}}, got {}"
+            raise ValueError(msg.format({{name}}.shape))
+        #unpack array
+        """))
+    
     def print_prepare_validate(self, printer):
         """Construct variable from an array_like and check dimensions."""
-        name = numpy.asarray(name, dtype=self.dtype)
-        if name.shape[-ndim:] != base_shape:
-            msg = "invalid shape, expected ... + {} and got {}"
-            raise ValueError(msg.format(base_shape, name.shape))
-        #unpack array
-        
+        context = dict(v=self, np=printer.numpy_alias, printer=printer)
+        return self.prepare_validate_template.render(context)
+
 
 def elements_and_shape(array_like):
     """Return flat list of elements and shape from array-like nested iterable.
