@@ -15,13 +15,22 @@ import sympy
 from . import utils
 
 
-function_template_src = '''\
-def {{function.name}}({{function.argument_names | join(', ')}}
+numpy_function_template_src = '''\
+def {{f.name}}({{f.argument_names | join(', ')}})
+    """Generated function `{{f.name}}` from sympy Array expression."""
+    {%- for arg in f.arguments %}
+    {{arg.name}}
+    {%- endfor %}
+
     pass
 '''
 
 class NumpyFunction:
     """Generates numpy code for symbolic array functions."""
+
+    @utils.cached_class_property
+    def template(cls):
+        return jinja2.Template(numpy_function_template_src)
     
     def __init__(self, output, name, arguments, **options):
         self.output = output
@@ -31,18 +40,19 @@ class NumpyFunction:
         """Generated function name."""
         
         self.arguments = arguments
-        """Ordered dict of sym2num Variables with the function arguments."""
+        """List of sym2num Variables with the function arguments."""
         
         self.options = options
         """Symbolic code generation options."""
     
-    @utils.cached_property
+    @property
     def argument_names(self):
-        return self.arguments.keys()
+        return [arg.name for arg in self.arguments]
     
     def code(self):
         """Print the function definition code."""
-        
+        context = dict(f=self)
+        return self.template.render(context)
 
 
 function_template = '''\

@@ -17,8 +17,19 @@ except ModuleNotFoundError:
         return property(functools.lru_cache()(f))
 
 
-def cached_static_property(f):
-    return property(staticmethod(functools.lru_cache()(f)))
+class cached_class_property:
+    """Decorator to cache class properties."""
+    def __init__(self, getter):
+        functools.update_wrapper(getter, self)
+        self.getter = getter
+    
+    def __get__(self, obj, cls=None):
+        if hasattr(self, 'value'):
+            return self.value
+        if cls is None:
+            cls = type(obj)
+        self.value = self.getter(cls)
+        return self.value
 
 
 def init_static_variable(f):
