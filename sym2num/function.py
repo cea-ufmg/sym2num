@@ -12,17 +12,41 @@ import jinja2
 import numpy as np
 import sympy
 
-from . import utils
+from . import utils, printing, var
 
 
 numpy_function_template_src = '''\
-def {{f.name}}({{f.argument_names | join(', ')}})
+def {{f.name}}({{f.argument_names | join(', ')}}):
     """Generated function `{{f.name}}` from sympy Array expression."""
+    # Function imports
+    import numpy as {{np}}
+    {% for mod in printer.direct_imports if mod != 'numpy' -%}
+    import {{mod}}
+    {% endfor -%}
+    {% for mod, alias in printer.aliased_imports if mod != 'numpy' -%}
+    import {{mod}} as {{alias}}
+    {% endfor %}
+    # Prepare and validate arguments
     {%- for arg in f.arguments %}
     {{ arg.print_prepare_validate(printer) | indent}}
     {%- endfor %}
-
-    pass
+    {% if cse_subs %}# Calculate the common subexpressions
+    {% endif -%}
+    {% for cse_symbol, cse_expr in cse_subs -%}
+    {{cse_symbol}} = {{printer.doprint(cse_expr)}}
+    {% endfor -%}
+    {% if f.broadcast_symbols -%}
+    # Broadcast the input arguments
+    _broadcast = {{np}}.broadcast({{f.broadcast_symbols | join(', ')}})
+    _out = {{np}}.zeros(_broadcast.shape + {{f.output.shape}})
+    {% else -%}
+    _out = {{np}}.zeros({{f.output.shape}})
+    {% endif %}
+    # Assign the nonzero elements of the output
+    {% for ind, expr in output_code if expr != 0 -%}
+    _out[..., {{ind | join(', ')}}] = {{expr}}
+    {% endfor -%}
+    return _out
 '''
 
 class NumpyFunction:
@@ -47,11 +71,35 @@ class NumpyFunction:
     
     @property
     def argument_names(self):
+        """List of names of the generated function arguments."""
         return [arg.name for arg in self.arguments]
+    
+    @property
+    def broadcast_symbols(self):
+        """List of argument elements broadcasted to generate the output"""
+        return [
+            arg[(0,) * arg.rank()] 
+            for arg in self.arguments
+            if isinstance(arg, var.SymbolArray)
+        ]
+    
+    def output_code(self, printer):
+        """Iterator of the ndenumeration of the output."""
+        for ind in np.ndindex(*self.output.shape):
+            expr = self.output[ind]
+            if expr != 0:
+                yield ind, printer.doprint(expr)
     
     def code(self):
         """Print the function definition code."""
-        context = dict(f=self)
+        printer = printing.Printer()
+        output_code = list(self.output_code(printer))
+        context = dict(
+            f=self, 
+            printer=printer, 
+            np=printer.numpy_alias,
+            output_code=output_code
+        )
         return self.template.render(context)
 
 

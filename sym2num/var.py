@@ -5,6 +5,7 @@ import collections
 import inspect
 import keyword
 
+import jinja2
 import numpy as np
 import sympy
 
@@ -13,7 +14,7 @@ from . import utils
 
 class Variable:
     """Represents a code generation variable."""
-
+    
     def print_prepare_validate(self, printer):
         """Returns code to validate and prepare the variable from arguments."""
         return ''
@@ -48,6 +49,10 @@ class SymbolArray(Variable, sympy.Array):
         
         self.dtype = dtype
         """Generated array dtype."""
+        
+    def ndenumerate(self):
+        for ind in np.ndindex(*self.shape):
+            yield ind, self[ind]
     
     def __str__(self):
         """Overrides `sympy.Array.__str__` which fails for rank-0 Arrays"""
@@ -72,11 +77,16 @@ class SymbolArray(Variable, sympy.Array):
     def prepare_validate_template(cls):
         return jinja2.Template(inspect.cleandoc("""
         {{v.name}} = {{np}}.asarray({{v.name}}, dtype={{np}}.{{v.dtype}})
-        if {{v.name}}.shape[-{{v.ndim}}:] != {{v.shape}}:
-            {% set expected = ', '.join((...,) + v.shape -%}
+        {% if v.rank() -%}
+        if {{v.name}}.shape[-{{v.rank()}}:] != {{v.shape}}:
+        {%- set expected %}(...,{{v.shape |join(",")}}){% endset %}
             msg = "invalid shape for {{v.name}}, expected {{expected}}, got {}"
-            raise ValueError(msg.format({{name}}.shape))
-        #unpack array
+            raise ValueError(msg.format({{v.name}}.shape))
+        {% endif -%}
+        # unpack `{{v.name}}` array elements
+        {% for ind, symb in v.ndenumerate() -%}
+        {{symb}} = {{v.name}}[..., {{ ind | join(', ')}}]
+        {% endfor %}
         """))
     
     def print_prepare_validate(self, printer):
