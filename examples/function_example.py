@@ -13,7 +13,7 @@ if __name__ == '__main__':
          sympy.cos(y) + 2*t + sympy.GoldenRatio]
     )
 
-    arguments = [var.SymbolArray('time', 't'),
+    arguments = [var.SymbolArray('time'),
                  var.SymbolArray('state', [x, y])]
     
     f = function.NumpyFunction(output, 'f', arguments)

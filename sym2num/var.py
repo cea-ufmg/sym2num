@@ -28,7 +28,10 @@ class Variable:
 class SymbolArray(Variable, sympy.Array):
     """Represents array of symbols for code generation."""
     
-    def __new__(cls, name, array_like, dtype='float64'):
+    def __new__(cls, name, array_like=None, dtype='float64'):
+        if array_like is None:
+            array_like = name
+        
         elements, shape = elements_and_shape(array_like)
         if all(isstr(e) for e in elements):
             elements = [
@@ -38,10 +41,10 @@ class SymbolArray(Variable, sympy.Array):
         if len(set(elements)) != len(elements):
             raise ValueError("elements of SymbolArray must be unique")
         
-        obj = super().__new__(cls, array_like, shape)
+        obj = super().__new__(cls, elements, shape)
         return obj
     
-    def __init__(self, name, array_like, dtype='float64'):
+    def __init__(self, name, array_like=None, dtype='float64'):
         if not isinstance(name, str):
             raise TypeError("expected str, but got {!r}".format(type(name)))
         if not isidentifier(name):
@@ -53,7 +56,7 @@ class SymbolArray(Variable, sympy.Array):
         
         self.dtype = dtype
         """Generated array dtype."""
-        
+    
     def ndenumerate(self):
         for ind in np.ndindex(*self.shape):
             yield ind, self[ind]
@@ -92,10 +95,12 @@ class SymbolArray(Variable, sympy.Array):
             msg = "invalid shape for {{v.name}}, expected {{expected}}, got {}"
             raise ValueError(msg.format({{v.name}}.shape))
         {% endif -%}
+        {% if v.rank() != 0 or v.name != v[()].name -%}
         # unpack `{{v.name}}` array elements
         {% for ind, symb in v.ndenumerate() -%}
         {{symb}} = {{v.name}}[..., {{ ind | join(', ')}}]
         {% endfor %}
+        {%- endif %}
         """))
     
     def print_prepare_validate(self, printer):
