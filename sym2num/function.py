@@ -35,9 +35,9 @@ def {{f.name}}({{f.argument_names | join(', ')}}):
     {% for cse_symbol, cse_expr in cse_subs -%}
     {{cse_symbol}} = {{printer.doprint(cse_expr)}}
     {% endfor -%}
-    {% if f.broadcast_symbols -%}
+    {% if f.broadcast_elements -%}
     # Broadcast the input arguments
-    _broadcast = {{np}}.broadcast({{f.broadcast_symbols | join(', ')}})
+    _broadcast = {{np}}.broadcast({{f.broadcast_elements | join(', ')}})
     _out = {{np}}.zeros(_broadcast.shape + {{f.output.shape}})
     {% else -%}
     _out = {{np}}.zeros({{f.output.shape}})
@@ -75,13 +75,9 @@ class NumpyFunction:
         return [arg.name for arg in self.arguments]
     
     @property
-    def broadcast_symbols(self):
+    def broadcast_elements(self):
         """List of argument elements broadcasted to generate the output"""
-        return [
-            arg[(0,) * arg.rank()] 
-            for arg in self.arguments
-            if isinstance(arg, var.SymbolArray)
-        ]
+        return sum((arg.broadcast_elements for arg in self.arguments), [])
     
     def output_code(self, printer):
         """Iterator of the ndenumeration of the output."""

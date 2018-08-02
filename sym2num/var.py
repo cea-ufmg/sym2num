@@ -18,7 +18,11 @@ class Variable:
     def print_prepare_validate(self, printer):
         """Returns code to validate and prepare the variable from arguments."""
         return ''
-        
+
+    @property
+    def broadcast_elements(self):
+        """List of elements which should be broadcast to generate the output."""
+        return []
 
 
 class SymbolArray(Variable, sympy.Array):
@@ -60,6 +64,11 @@ class SymbolArray(Variable, sympy.Array):
             return repr(self[()])
         else:
             return super().__str__()
+    
+    @property
+    def broadcast_elements(self):
+        """List of elements which should be broadcast to generate the output."""
+        return [self[(0,) * self.rank()]]
     
     def symbols(self, value):
         value_array = sympy.Array(value)
