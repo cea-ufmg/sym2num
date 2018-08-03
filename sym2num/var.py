@@ -18,11 +18,15 @@ class Variable:
     def print_prepare_validate(self, printer):
         """Returns code to validate and prepare the variable from arguments."""
         return ''
-
+    
     @property
     def broadcast_elements(self):
         """List of elements which should be broadcast to generate the output."""
         return []
+
+    def subs_dict(self, value):
+        """Dictionary of substitutions to evaluate with a given value."""
+        return {self: value}
 
 
 class SymbolArray(Variable, sympy.Array):
@@ -112,6 +116,11 @@ class SymbolArray(Variable, sympy.Array):
         context = dict(v=self, np=printer.numpy_alias, printer=printer)
         return self.prepare_validate_template.render(context)
 
+    @property
+    def symbols(self):
+        """Set of symbols defined by this variable."""
+        return set(self)
+    
 
 def elements_and_shape(array_like):
     """Return flat list of elements and shape from array-like nested iterable.

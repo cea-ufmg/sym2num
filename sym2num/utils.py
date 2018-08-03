@@ -103,11 +103,22 @@ def make_signature(arg_name_list, member=False):
     return inspect.Signature(parameters)
 
 
+def wrap_with_signature(f, arg_name_list, member=False):
+    @functools.wraps
+    def wrapper(*args):
+        return f(args)
+    wrapper.__signature__ = make_signature(arg_name_list, member)
+    return wrapper
+
+
 class SymbolicSubsFunction:
     def __init__(self, arguments, output):
         self.arguments = tuple(arguments)
         self.output = output
-
+        
+        arg_name_list = [a.name for a in arguments]
+        self.__call__ = wrap_with_signature(self.__call__, arg_name_list)
+    
     def __call__(self, *args):
         assert len(args) == len(self.arguments)
         subs = {}

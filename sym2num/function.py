@@ -71,9 +71,10 @@ class NumpyFunction:
         
         self.options = options
         """Symbolic code generation options."""
-
-        input_symbols = functools.reduce(set.union, map(set, arguments))
-        if sum(map(len, arguments)) > len(input_symbols):
+        
+        argument_symbols = [a.symbols for a in arguments]
+        input_symbols = functools.reduce(set.union, argument_symbols)
+        if sum(map(len, argument_symbols)) > len(input_symbols):
             raise ValueError("duplicate symbols found in input argument list")
         
         orphan_symbols = output.free_symbols - input_symbols

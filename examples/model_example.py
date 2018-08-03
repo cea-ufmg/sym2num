@@ -8,8 +8,8 @@ from sym2num import model, utils, var
 
 class ExampleModel(model.Base):
     
-    derivatives = [('df_dx', 'f', 'x')]
-
+    derivatives = [('df_dx', 'f', 'x'), ('df_dx_dt', 'df_dx', 't')]
+    
     @model.make_variables_dict
     def variables():
         """Model variables definition."""
