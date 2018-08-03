@@ -23,6 +23,59 @@ import sympy
 from . import function, utils
 
 
+class Base:
+    def __init__(self):
+        self._init_derivatives()
+
+    def _init_derivatives(self):
+        """Initialize model derivatives."""
+        for spec in getattr(self, 'derivatives', []):
+            self.add_derivative(*spec)
+    
+    def default_function_arguments(self, fname):
+        """Function output for the default arguments."""
+        try:
+            f = getattr(self, fname)
+        except AttributeError:
+            raise ValueError("{} member not found".format(fname))
+        except TypeError:
+            raise TypeError("function name must be a string")
+
+        if isinstance(f, utils.SymbolicSubsFunction):
+            return f.arguments
+        
+        return [self.variables[v] for v in inspect.signature(f).parameters]
+    
+    @functools.lru_cache()
+    def default_function_output(self, fname):
+        """Function output for the default arguments."""
+        try:
+            f = getattr(self, fname)
+        except AttributeError:
+            raise ValueError("{} member not found".format(fname))
+        except TypeError:
+            raise TypeError("function name must be a string")
+
+        if isinstance(f, utils.SymbolicSubsFunction):
+            return f.output
+        
+        args = self.default_function_arguments(fname)
+        return f(*args)
+    
+    def add_derivative(self, name, fname, wrt_names):
+        if isinstance(wrt_names, str):
+            wrt_names = (wrt_names,)
+        
+        out = self.default_function_output(fname)
+        for wrt_name in reversed(wrt_names):
+            wrt = self.variables[wrt_name]
+            out = sympy.derive_by_array(out, wrt)
+        
+        args = self.default_function_arguments(fname)
+        deriv = utils.SymbolicSubsFunction(args, out)
+        setattr(self, name, deriv)
+
+
 class_template = '''\
 class {{generated_name}}({{class_signature}}):
     """Generated code for symbolic model {{sym_name}}"""
@@ -275,12 +328,11 @@ def filterout_none(d):
 
 def make_variables_dict(variables_list_factory):
     """Make a dictionary from a variables list."""
-    return {variable.name for variable in variables_list_factory()}
+    return {var.name: var for var in variables_list_factory()}
 
 
 def symbols_from(names):
     name_list = [name.strip() for name in names.split(',')]
-    
     def decorator(f):
         @functools.wraps(f)
         def wrapper(self, *args):
@@ -289,7 +341,10 @@ def symbols_from(names):
                 raise TypeError(msg.format(f.__name__,len(name_list),len(args)))
             a = attrdict.AttrDict()
             for name, arg in zip(name_list, args):
-                a.update(self.variables[name].symbols(arg))
+                subs_dict = self.variables[name].subs_dict(arg)
+                for symbol, value in subs_dict.items():
+                    a[symbol.name] = value
             return f(self, a)
+        wrapper.__signature__ = utils.make_signature(name_list, member=True)
         return wrapper
     return decorator

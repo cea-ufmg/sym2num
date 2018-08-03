@@ -78,17 +78,16 @@ class SymbolArray(Variable, sympy.Array):
         """List of elements which should be broadcast to generate the output."""
         return [self[(0,) * self.rank()]]
     
-    def symbols(self, value):
+    def subs_dict(self, value):
         value_array = sympy.Array(value)
         if self.shape != value_array.shape:
             msg = "Invalid shape for argument, expected {} and got {}"
             raise ValueError(msg.format(self.shape, value_array.shape))
         
-        symbols = {}
+        subs = {}
         for i in np.ndindex(*self.shape):
-            name = self[i].name
-            symbols[name] = value_array[i]
-        return symbols
+            subs[self[i]] = value_array[i]
+        return subs
     
     @utils.cached_class_property
     def prepare_validate_template(cls):

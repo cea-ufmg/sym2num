@@ -6,7 +6,10 @@ import sympy
 from sym2num import model, utils, var
 
 
-class ExampleModel:
+class ExampleModel(model.Base):
+    
+    derivatives = [('df_dx', 'f', 'x')]
+
     @model.make_variables_dict
     def variables():
         """Model variables definition."""

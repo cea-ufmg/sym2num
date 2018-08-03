@@ -1,7 +1,9 @@
-'''Sympy numerical code generation utilities.'''
+"""Sympy numerical code generation utilities."""
 
 
+import collections
 import functools
+import inspect
 import itertools
 import re
 
@@ -37,7 +39,7 @@ def init_static_variable(f):
 
 
 def ew_diff(ndexpr, *wrt, **kwargs):
-    '''Element-wise symbolic derivative of n-dimensional array-like expression.
+    """Element-wise symbolic derivative of n-dimensional array-like expression.
     
     >>> import sympy
     >>> x = sympy.symbols('x')
@@ -45,7 +47,7 @@ def ew_diff(ndexpr, *wrt, **kwargs):
     array([[2*x, -sin(x)],
            [-5/x**2, 3*x**2 + 2]], dtype=object)
     
-    '''
+    """
     out = np.empty_like(ndexpr, object)
     for ind, expr in np.ndenumerate(ndexpr):
         out[ind] = sympy.diff(expr, *wrt, **kwargs)
@@ -53,7 +55,7 @@ def ew_diff(ndexpr, *wrt, **kwargs):
 
 
 def ndexpr_diff(ndexpr, wrt):
-    '''Calculates the derivatives of an array expression w.r.t. to an ndarray.
+    """Calculates the derivatives of an array expression w.r.t. to an ndarray.
     
     >>> from sympy import var, sin; from numpy import array
     >>> tup = var('x,y,z')
@@ -65,7 +67,7 @@ def ndexpr_diff(ndexpr, wrt):
     array([[2*x, cos(x)],
            [2/z, 0]], dtype=object)
     
-    '''
+    """
     ndexpr = np.asarray(ndexpr)
     wrt = np.asarray(wrt)
     jac = np.empty(wrt.shape + ndexpr.shape, dtype=object)
@@ -76,10 +78,44 @@ def ndexpr_diff(ndexpr, wrt):
 
 
 def flat_cat(*args, **kwargs):
-    '''Concatenate flattened arrays.'''
+    """Concatenate flattened arrays."""
     chain = list(itertools.chain(args, kwargs.values()))
     if not chain:
         return np.array([])
     else:
         return np.concatenate([np.asanyarray(a).flatten() for a in chain])
 
+
+def make_signature(arg_name_list, member=False):
+    """Make Signature object from argument name list or str."""
+    parameters = []
+    kind = inspect.Parameter.POSITIONAL_OR_KEYWORD
+    
+    if member:
+        parameters.append(inspect.Parameter('self', kind))
+    
+    if isinstance(arg_name_list, str):
+        arg_name_list = map(str.strip, arg_name_list.split(','))
+
+    for arg_name in arg_name_list:
+        parameters.append(inspect.Parameter(arg_name, kind))
+    
+    return inspect.Signature(parameters)
+
+
+class SymbolicSubsFunction:
+    def __init__(self, arguments, output):
+        self.arguments = tuple(arguments)
+        self.output = output
+
+    def __call__(self, *args):
+        assert len(args) == len(self.arguments)
+        subs = {}
+        for var, value in zip(self.arguments, args):
+            subs.update(var.subs_dict(value))
+        
+        # double substitution is needed when the same symbol appears in the
+        # function definition and call arguments
+        temp_subs = {s: sympy.Symbol('_temp_subs_' + s.name) for s in subs}
+        final_subs = {temp_subs[s]: subs[s] for s in temp_subs}
+        return self.output.subs(temp_subs).subs(final_subs)
