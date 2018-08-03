@@ -34,9 +34,7 @@ class SymbolArray(Variable, sympy.Array):
         
         elements, shape = elements_and_shape(array_like)
         if all(isstr(e) for e in elements):
-            elements = [
-                sympy.Symbol(n, *cls.default_assumptions) for n in elements
-            ]
+            elements = [sympy.Symbol(n) for n in elements]
         
         if len(set(elements)) != len(elements):
             raise ValueError("elements of SymbolArray must be unique")
@@ -56,17 +54,24 @@ class SymbolArray(Variable, sympy.Array):
         
         self.dtype = dtype
         """Generated array dtype."""
+
+        symbol_names = set(symbol.name for symbol in self)
+        if len(self) > len(symbol_names):
+            raise ValueError("symbol names in array must be unique")
+        
+        if self.rank() > 0 and self.name in symbol_names:
+            raise ValueError("positive-rank array name and symbols must differ")
     
     def ndenumerate(self):
         for ind in np.ndindex(*self.shape):
             yield ind, self[ind]
     
-    def __str__(self):
-        """Overrides `sympy.Array.__str__` which fails for rank-0 Arrays"""
+    def __len__(self):
+        """Overrides `sympy.Array.__len__` which fails for rank-0 Arrays"""
         if self.shape == ():
-            return repr(self[()])
+            return 1
         else:
-            return super().__str__()
+            return super().__len__()
     
     @property
     def broadcast_elements(self):

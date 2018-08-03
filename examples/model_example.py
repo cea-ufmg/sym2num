@@ -7,9 +7,9 @@ from sym2num import model, utils, var
 
 
 class ExampleModel:
-    @utils.init_static_variable
+    @model.make_variables_dict
     def variables():
-        """Model Variables."""
+        """Model variables definition."""
         return [
             var.SymbolArray('x', ['u', 'v']),
             var.SymbolArray('t'),

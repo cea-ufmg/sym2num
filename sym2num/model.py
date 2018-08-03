@@ -273,6 +273,11 @@ def filterout_none(d):
     return {k: v for k, v in items if v is not None}
 
 
+def make_variables_dict(variables_list_factory):
+    """Make a dictionary from a variables list."""
+    return {variable.name for variable in variables_list_factory()}
+
+
 def symbols_from(names):
     name_list = [name.strip() for name in names.split(',')]
     

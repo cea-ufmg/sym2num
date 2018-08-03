@@ -12,9 +12,8 @@ if __name__ == '__main__':
         [x**2 + sympy.erf(x),
          sympy.cos(y) + 2*t + sympy.GoldenRatio]
     )
-
-    arguments = [var.SymbolArray('time'),
+    arguments = [var.SymbolArray('t'),
                  var.SymbolArray('state', [x, y])]
     
-    f = function.NumpyFunction(output, 'f', arguments)
+    f = function.NumpyFunction('f', output, arguments)
     print(f.code())

@@ -3,6 +3,7 @@
 
 import collections
 import collections.abc as colabc
+import functools
 import itertools
 import keyword
 import re
@@ -56,18 +57,35 @@ class NumpyFunction:
     def template(cls):
         return jinja2.Template(numpy_function_template_src)
     
-    def __init__(self, output, name, arguments, **options):
-        self.output = output
-        """Symbolic expression of the function's output."""
-        
+    def __init__(self, name, output, arguments, **options):
         self.name = name
         """Generated function name."""
+
+        if not isinstance(output, sympy.NDimArray):
+            warnings.warn("sympy.NDimArray instance expected as output")
+        self.output = output
+        """Symbolic expression of the function's output."""
         
         self.arguments = arguments
         """List of sym2num Variables with the function arguments."""
         
         self.options = options
         """Symbolic code generation options."""
+
+        input_symbols = functools.reduce(set.union, map(set, arguments))
+        if sum(map(len, arguments)) > len(input_symbols):
+            raise ValueError("duplicate symbols found in input argument list")
+        
+        orphan_symbols = output.free_symbols - input_symbols
+        if orphan_symbols:
+            msg = "symbols {} of the output are not in the input"
+            raise ValueError(msg.format(orphan_symbols))
+        
+        input_symbol_names = set(s.name for s in input_symbols)
+        for arg in arguments:
+            if arg.rank() > 0 and arg.name in input_symbol_names:
+                msg = "argument name coincides with input symbol name"
+                raise ValueError(msg)
     
     @property
     def argument_names(self):
