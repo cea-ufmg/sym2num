@@ -15,5 +15,5 @@ if __name__ == '__main__':
     arguments = [var.SymbolArray('t'),
                  var.SymbolArray('state', [x, y])]
     
-    f = function.NumpyFunction('f', output, arguments)
-    print(f.code())
+    f = function.FunctionPrinter('f', output, arguments)
+    print(f.print_def())

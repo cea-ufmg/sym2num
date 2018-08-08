@@ -14,7 +14,7 @@ from . import utils
 
 class Variable:
     """Represents a code generation variable."""
-    
+        
     def print_prepare_validate(self, printer):
         """Returns code to validate and prepare the variable from arguments."""
         return ''
@@ -23,10 +23,15 @@ class Variable:
     def broadcast_elements(self):
         """List of elements which should be broadcast to generate the output."""
         return []
-
+    
     def subs_dict(self, value):
         """Dictionary of substitutions to evaluate with a given value."""
         return {self: value}
+    
+    @property
+    def identifiers(self):
+        """Set of identifiers defined in this variable's code."""
+        return {self.name}
 
 
 class SymbolArray(Variable, sympy.Array):
@@ -117,10 +122,10 @@ class SymbolArray(Variable, sympy.Array):
         return self.prepare_validate_template.render(context)
 
     @property
-    def symbols(self):
-        """Set of symbols defined by this variable."""
-        return set(self)
-    
+    def identifiers(self):
+        """Set of identifiers defined in this variable's code."""
+        return {self.name} | {elem.name for elem in self}
+
 
 def elements_and_shape(array_like):
     """Return flat list of elements and shape from array-like nested iterable.

@@ -86,47 +86,25 @@ def flat_cat(*args, **kwargs):
         return np.concatenate([np.asanyarray(a).flatten() for a in chain])
 
 
-def make_signature(arg_name_list, member=False):
-    """Make Signature object from argument name list or str."""
-    parameters = []
+def make_signature(arg_names, member=False):
+    """Make Signature object from argument name iterable or str."""
     kind = inspect.Parameter.POSITIONAL_OR_KEYWORD
     
-    if member:
-        parameters.append(inspect.Parameter('self', kind))
-    
-    if isinstance(arg_name_list, str):
-        arg_name_list = map(str.strip, arg_name_list.split(','))
+    if isinstance(arg_names, str):
+        arg_names = map(str.strip, arg_name_list.split(','))
 
-    for arg_name in arg_name_list:
-        parameters.append(inspect.Parameter(arg_name, kind))
+    parameters = [inspect.Parameter(n, kind) for n in arg_names]
+    if member:
+        parameters = [inspect.Parameter('self', kind)] + parameters
     
     return inspect.Signature(parameters)
 
 
-def wrap_with_signature(f, arg_name_list, member=False):
-    @functools.wraps
-    def wrapper(*args):
-        return f(args)
-    wrapper.__signature__ = make_signature(arg_name_list, member)
-    return wrapper
-
-
-class SymbolicSubsFunction:
-    def __init__(self, arguments, output):
-        self.arguments = tuple(arguments)
-        self.output = output
-        
-        arg_name_list = [a.name for a in arguments]
-        self.__call__ = wrap_with_signature(self.__call__, arg_name_list)
-    
-    def __call__(self, *args):
-        assert len(args) == len(self.arguments)
-        subs = {}
-        for var, value in zip(self.arguments, args):
-            subs.update(var.subs_dict(value))
-        
-        # double substitution is needed when the same symbol appears in the
-        # function definition and call arguments
-        temp_subs = {s: sympy.Symbol('_temp_subs_' + s.name) for s in subs}
-        final_subs = {temp_subs[s]: subs[s] for s in temp_subs}
-        return self.output.subs(temp_subs).subs(final_subs)
+def wrap_with_signature(arg_name_list, member=False):
+    def decorator(f):
+        @functools.wraps(f)
+        def wrapper(*args):
+            return f(*args)
+        wrapper.__signature__ = make_signature(arg_name_list, member)
+        return wrapper
+    return decorator

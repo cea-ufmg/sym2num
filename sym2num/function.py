@@ -16,6 +16,14 @@ import sympy
 from . import utils, printing, var
 
 
+def print_function(name, output, arguments, **options):
+    return FunctionPrinter(name, output, arguments, **options).code()
+
+
+def compile_function(name, output, arguments, **options):
+    return FunctionPrinter(name, output, arguments, **options).callable()
+
+
 numpy_function_template_src = '''\
 def {{f.name}}({{f.argument_names | join(', ')}}):
     """Generated function `{{f.name}}` from sympy Array expression."""
@@ -50,7 +58,7 @@ def {{f.name}}({{f.argument_names | join(', ')}}):
     return _out
 '''
 
-class NumpyFunction:
+class FunctionPrinter:
     """Generates numpy code for symbolic array functions."""
 
     @utils.cached_class_property
@@ -72,21 +80,16 @@ class NumpyFunction:
         self.options = options
         """Symbolic code generation options."""
         
-        argument_symbols = [a.symbols for a in arguments]
-        input_symbols = functools.reduce(set.union, argument_symbols)
-        if sum(map(len, argument_symbols)) > len(input_symbols):
+        argument_ids = [a.identifiers for a in arguments]
+        all_argument_ids = functools.reduce(set.union, argument_ids, set())
+        if sum(map(len, argument_ids)) > len(all_argument_ids):
             raise ValueError("duplicate symbols found in input argument list")
         
-        orphan_symbols = output.free_symbols - input_symbols
-        if orphan_symbols:
-            msg = "symbols {} of the output are not in the input"
-            raise ValueError(msg.format(orphan_symbols))
-        
-        input_symbol_names = set(s.name for s in input_symbols)
-        for arg in arguments:
-            if arg.rank() > 0 and arg.name in input_symbol_names:
-                msg = "argument name coincides with input symbol name"
-                raise ValueError(msg)
+        output_ids = {s.name for s in output.free_symbols}
+        orphan_symbol_ids = output_ids - all_argument_ids
+        if orphan_symbol_ids:
+            msg = "symbols `{}` of the output are not in the input"
+            raise ValueError(msg.format(', '.join(orphan_symbol_ids)))
     
     @property
     def argument_names(self):
@@ -105,7 +108,7 @@ class NumpyFunction:
             if expr != 0:
                 yield ind, printer.doprint(expr)
     
-    def code(self):
+    def print_def(self):
         """Print the function definition code."""
         printer = printing.Printer()
         output_code = list(self.output_code(printer))
@@ -116,6 +119,32 @@ class NumpyFunction:
             output_code=output_code
         )
         return self.template.render(context)
+
+    def callable(self):
+        env = {}
+        exec(compile(self.print_def(), '<string>', 'exec'), env)
+        return utils.wrap_with_signature(self.argument_names)(env[self.name])
+
+
+class SymbolicSubsFunction:
+    def __init__(self, arguments, output):
+        self.arguments = tuple(arguments)
+        self.output = output
+        
+        arg_name_list = [a.name for a in arguments]
+        self.__call__ = wrap_with_signature(arg_name_list)(self.__call__)
+    
+    def __call__(self, *args):
+        assert len(args) == len(self.arguments)
+        subs = {}
+        for var, value in zip(self.arguments, args):
+            subs.update(var.subs_dict(value))
+        
+        # double substitution is needed when the same symbol appears in the
+        # function definition and call arguments
+        temp_subs = {s: sympy.Symbol('_temp_subs_' + s.name) for s in subs}
+        final_subs = {temp_subs[s]: subs[s] for s in temp_subs}
+        return self.output.subs(temp_subs).subs(final_subs)
 
 
 function_template = '''\
