@@ -164,7 +164,7 @@ def isiterable(obj):
 def isidentifier(ident: str) -> bool:
     """Return whether a string is a valid python identifier."""
     
-    if not isinstance(ident, str):
+    if not isstr(ident):
         raise TypeError("expected str, but got {!r}".format(type(ident)))
     if not ident.isidentifier():
         return False
