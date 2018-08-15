@@ -42,7 +42,7 @@ class SymbolArray(Variable, sympy.Array):
             array_like = name
         
         elements, shape = elements_and_shape(array_like)
-        if all(isstr(e) for e in elements):
+        if all(utils.isstr(e) for e in elements):
             elements = [sympy.Symbol(n) for n in elements]
         
         if len(set(elements)) != len(elements):
@@ -54,7 +54,7 @@ class SymbolArray(Variable, sympy.Array):
     def __init__(self, name, array_like=None, dtype='float64'):
         if not isinstance(name, str):
             raise TypeError("expected str, but got {!r}".format(type(name)))
-        if not isidentifier(name):
+        if not utils.isidentifier(name):
             raise ValueError(
                 "'{}' is not a valid python identifier".format(name)
             )
@@ -133,7 +133,7 @@ def elements_and_shape(array_like):
     Based on `sympy.tensor.array.ndim_array.NDimArray._scan_iterable_shape`.
     """
     #Detect if we are at a scalar element
-    if (isstr(array_like) or not isiterable(array_like)):
+    if (utils.isstr(array_like) or not utils.isiterable(array_like)):
         return [array_like], ()
     
     #We have an iterable, apply self to its elements
@@ -149,26 +149,3 @@ def elements_and_shape(array_like):
         elements.extend(subelement)
     shape = (len(subelements),) + subshapes[0]
     return elements, shape
-
-
-def isstr(obj):
-    """Return whether an object is instance of `str`."""
-    return isinstance(obj, str)
-
-
-def isiterable(obj):
-    """Return whether an object is iterable."""
-    return isinstance(obj, collections.Iterable)
-
-
-def isidentifier(ident: str) -> bool:
-    """Return whether a string is a valid python identifier."""
-    
-    if not isstr(ident):
-        raise TypeError("expected str, but got {!r}".format(type(ident)))
-    if not ident.isidentifier():
-        return False
-    if keyword.iskeyword(ident):
-        return False
-    
-    return True

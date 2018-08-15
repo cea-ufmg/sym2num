@@ -5,6 +5,7 @@ import collections
 import functools
 import inspect
 import itertools
+import keyword
 import re
 
 import numpy as np
@@ -108,3 +109,51 @@ def wrap_with_signature(arg_name_list, member=False):
         wrapper.__signature__ = make_signature(arg_name_list, member)
         return wrapper
     return decorator
+
+
+def sparsify(array, selector=None):
+    """Get nonzero values and indices from an array."""
+    rank = array.rank()
+
+    values = []
+    indices = []
+    
+    for index in np.ndindex(*array.shape):
+        if selector is not None and not selector(*index):
+            continue
+        
+        elem = array[index]
+        if elem:
+            values.append(elem)
+            indices.append(index)
+    
+    indices = np.asarray(indices) if indices else np.zero((0,array.rank()), int)
+    return sympy.Array(values), indices
+
+
+def istril(*index):
+    """Return whether and index is in the lower triangle of an array."""
+    return index[0] <= index[1]
+
+
+def isstr(obj):
+    """Return whether an object is instance of `str`."""
+    return isinstance(obj, str)
+
+
+def isiterable(obj):
+    """Return whether an object is iterable."""
+    return isinstance(obj, collections.Iterable)
+
+
+def isidentifier(ident: str) -> bool:
+    """Return whether a string is a valid python identifier."""
+    
+    if not isstr(ident):
+        raise TypeError("expected str, but got {!r}".format(type(ident)))
+    if not ident.isidentifier():
+        return False
+    if keyword.iskeyword(ident):
+        return False
+    
+    return True

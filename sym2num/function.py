@@ -17,7 +17,7 @@ from . import utils, printing, var
 
 
 def print_function(name, output, arguments, **options):
-    return FunctionPrinter(name, output, arguments, **options).code()
+    return FunctionPrinter(name, output, arguments, **options).print_def()
 
 
 def compile_function(name, output, arguments, **options):
@@ -133,7 +133,7 @@ class SymbolicSubsFunction:
         self.output = output
         
         arg_name_list = [a.name for a in arguments]
-        self.__call__ = wrap_with_signature(arg_name_list)(self.__call__)
+        self.__call__ = utils.wrap_with_signature(arg_name_list)(self.__call__)
     
     def __call__(self, *args):
         assert len(args) == len(self.arguments)
@@ -146,3 +146,13 @@ class SymbolicSubsFunction:
         temp_subs = {s: sympy.Symbol('_temp_subs_' + s.name) for s in subs}
         final_subs = {temp_subs[s]: subs[s] for s in temp_subs}
         return self.output.subs(temp_subs).subs(final_subs)
+
+
+def isstatic(arguments):
+    """Return whether an argument list corresponds to a static method."""
+    return len(arguments) > 0 and 'cls' != arguments[0].name != 'self'
+
+
+def isclassmethod(arguments):
+    """Return whether an argument list corresponds to a classmethod."""
+    return len(arguments) > 0 and arguments[0].name == 'cls'

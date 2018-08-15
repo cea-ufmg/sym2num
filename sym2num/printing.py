@@ -44,3 +44,12 @@ class Printer(SciPyPrinter):
             if module in self.module_imports:
                 yield module, alias
 
+    def print_ndarray(arr, self, assign_to=None):
+        subs = dict(
+            np=self.numpy_alias,
+            dtype=arr.dtype,
+            list=arr.tolist()
+        )
+        arr_str = "{np}.array({list}, dtype={np}.{dtype})".format(**subs)
+        if assign_to and utils.isidentifier(assign_to):
+            return '{} = {}'.format(assign_to, arr_str)

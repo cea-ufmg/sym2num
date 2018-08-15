@@ -20,7 +20,7 @@ import numpy as np
 import jinja2
 import sympy
 
-from . import function, utils
+from . import function, utils, printing
 
 
 class Base:
@@ -41,7 +41,7 @@ class Base:
         except TypeError:
             raise TypeError("function name must be a string")
 
-        if isinstance(f, utils.SymbolicSubsFunction):
+        if isinstance(f, function.SymbolicSubsFunction):
             return f.arguments
         
         return [self.variables[v] for v in inspect.signature(f).parameters]
@@ -56,7 +56,7 @@ class Base:
         except TypeError:
             raise TypeError("function name must be a string")
 
-        if isinstance(f, utils.SymbolicSubsFunction):
+        if isinstance(f, function.SymbolicSubsFunction):
             return f.output
         
         args = self.default_function_arguments(fname)
@@ -72,8 +72,98 @@ class Base:
             out = sympy.derive_by_array(out, wrt)
         
         args = self.default_function_arguments(fname)
-        deriv = utils.SymbolicSubsFunction(args, out)
+        deriv = function.SymbolicSubsFunction(args, out)
         setattr(self, name, deriv)
+
+
+def print_class(name, model, functions=None, sparse=None):
+    model_printer = ModelPrinter(name, model, functions, sparse)
+    return model_printer.print_class()
+
+
+model_template_src = '''\
+# Model imports
+import numpy as {{printer.numpy_alias}}
+
+class {{m.name}}:
+    """Generated code for {{m.name}} from symbolic model."""
+    {% for method in m.methods %}
+    {{ method | indent }}
+    {% endfor %}
+
+    # TODO: create sparse indices
+'''
+
+
+class ModelPrinter:
+    """Generates numpy code for symbolic models."""
+
+    @utils.cached_class_property
+    def template(cls):
+        return jinja2.Template(model_template_src)
+    
+    def __init__(self, name, model, functions=None, sparse=None):
+        self.name = name
+        """Name of the generated class."""
+        
+        self.model = model
+        """The underlying symbolic model."""
+        
+        f_specs = []
+        for fname in functions or getattr(model, 'generate_functions', []):
+            output = self.model.default_function_output(fname)
+            arguments = self.model.default_function_arguments(fname)
+            f_specs.append((fname, output, arguments))
+        
+        for spec in sparse or getattr(model, 'generate_sparse', []):
+            fname, selector = (spec, None) if utils.isstr(spec) else spec
+            output = model.default_function_output(fname)
+            arguments = model.default_function_arguments(fname)
+            values, indices = utils.sparsify(output, selector)
+            f_specs.append((fname + '_val', values, arguments))
+        
+        self._f_specs = f_specs
+        """Function generation specifications."""
+        
+    @property
+    def methods(self):
+        for fname, output, arguments in self._f_specs:
+            fdef = function.print_function(fname, output, arguments)
+            if function.isstatic(arguments):
+                yield '\n'.join(('@staticmethod', fdef))
+            elif function.isclassmethod(arguments):
+                yield '\n'.join(('@classmethod', fdef))
+            else:
+                yield fdef
+
+    def print_class(self):
+        context = dict(m=self, printer=printing.Printer())
+        return self.template.render(context)
+
+
+def print_model_(model, functions=None, sparse=None):
+    if functions is None and hasattr(model, 'generate_functions'):
+        functions = model.generate_functions
+        
+    if sparse is None and hasattr(model, 'generate_sparse'):
+        sparse = model.generate_sparse
+
+    fdefs = []
+    assignments = []
+    printer = printing.Printer()
+    
+    for fname in functions:
+        output = model.default_function_output(fname)
+        arguments = model.default_function_arguments(fname)
+        fdefs.append(function.print_function(fname, output, arguments))
+
+    for spec in sparse:
+        fname, selector = (spec, None) if utils.isstr(spec) else spec
+        output = model.default_function_output(fname)
+        arguments = model.default_function_arguments(fname)
+        values, indices = utils.sparsify(output, selector)
+        fdefs.append(function.print_function(fname + '_val', values, arguments))
+        assignments.append(printer.print_ndarray(indices, fname + '_ind'))
 
 
 class_template = '''\
