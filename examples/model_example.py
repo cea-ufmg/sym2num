@@ -21,6 +21,12 @@ class ExampleModel(model.Base):
             var.SymbolArray('y', [['p'], ['q']])
         ]
     
+
+    @property
+    def generate_assignments(self):
+        return dict(nx=len(self.variables['x']),
+                    yshape=self.variables['y'].shape)
+    
     @model.symbols_from('t, x')
     def f(self, a):
         """Example method."""
