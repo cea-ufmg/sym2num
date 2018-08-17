@@ -9,6 +9,7 @@ Improvement ideas
 
 
 import abc
+import collections
 import collections.abc
 import functools
 import inspect
@@ -90,8 +91,9 @@ class {{m.name}}:
     {% for method in m.methods %}
     {{ method | indent }}
     {% endfor %}
-
-    # TODO: create sparse indices
+    {% for name, indices in m.sparse_indices.items() -%}
+    {{ printer.print_ndarray(indices, assign_to=name) }}
+    {% endfor %}
 '''
 
 
@@ -115,15 +117,20 @@ class ModelPrinter:
             arguments = self.model.default_function_arguments(fname)
             f_specs.append((fname, output, arguments))
         
+        sparse_indices = collections.OrderedDict()
         for spec in sparse or getattr(model, 'generate_sparse', []):
             fname, selector = (spec, None) if utils.isstr(spec) else spec
             output = model.default_function_output(fname)
             arguments = model.default_function_arguments(fname)
             values, indices = utils.sparsify(output, selector)
             f_specs.append((fname + '_val', values, arguments))
+            sparse_indices[fname + '_ind'] = indices
         
         self._f_specs = f_specs
         """Function generation specifications."""
+
+        self.sparse_indices = sparse_indices
+        """Indices of sparse functions."""
         
     @property
     def methods(self):

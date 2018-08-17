@@ -8,6 +8,8 @@ import sympy
 
 from sympy.printing.pycode import SciPyPrinter
 
+from . import utils
+
 
 class Printer(SciPyPrinter):
     """sym2num sympy code printer."""
@@ -44,12 +46,20 @@ class Printer(SciPyPrinter):
             if module in self.module_imports:
                 yield module, alias
 
-    def print_ndarray(arr, self, assign_to=None):
+    def print_ndarray(self, arr, assign_to=None):
+        arr = np.asarray(arr)
         subs = dict(
             np=self.numpy_alias,
             dtype=arr.dtype,
-            list=arr.tolist()
+            list=arr.tolist(),
+            shape=arr.shape
         )
-        arr_str = "{np}.array({list}, dtype={np}.{dtype})".format(**subs)
+        if arr.size:
+            arr_str = "{np}.array({list}, dtype={np}.{dtype})".format(**subs)
+        else:
+            arr_str = "{np}.zeros({shape}, dtype={np}.{dtype})".format(**subs)
+
         if assign_to and utils.isidentifier(assign_to):
             return '{} = {}'.format(assign_to, arr_str)
+        else:
+            return arr_str

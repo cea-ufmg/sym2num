@@ -10,7 +10,7 @@ class ExampleModel(model.Base):
     
     derivatives = [('df_dx', 'f', 'x'), ('df_dx_dt', 'df_dx', 't')]
     generate_functions = ['f', 'df_dx']
-    generate_sparse = ['df_dx']
+    generate_sparse = ['df_dx', 'f']
     
     @model.make_variables_dict
     def variables():
