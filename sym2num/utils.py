@@ -127,8 +127,10 @@ def sparsify(array, selector=None):
             values.append(elem)
             indices.append(index)
     
-    indices = np.asarray(indices) if indices else np.zero((0,array.rank()), int)
-    return sympy.Array(values), indices
+    if indices:
+        return sympy.Array(values), np.asarray(indices)
+    else:
+        return sympy.Array([], 0), np.zeros((0, array.rank()), int)
 
 
 def istril(*index):
