@@ -82,6 +82,11 @@ def print_class(name, model, functions=None, sparse=None, assignments={}):
     return model_printer.print_class()
 
 
+def compile_class(name, model, functions=None, sparse=None, assignments={}):
+    model_printer = ModelPrinter(name, model, functions, sparse, assignments)
+    return model_printer.class_obj()
+
+
 model_template_src = '''\
 # Model imports
 import numpy as {{printer.numpy_alias}}
@@ -153,6 +158,11 @@ class ModelPrinter:
     def print_class(self):
         context = dict(m=self, printer=printing.Printer())
         return self.template.render(context)
+
+    def class_obj(self):
+        env = {}
+        exec(compile(self.print_class(), '<string>', 'exec'), env)
+        return env[self.name]
 
 
 class_template = '''\
