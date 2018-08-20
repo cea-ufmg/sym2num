@@ -93,12 +93,10 @@ def make_signature(arg_names, member=False):
     
     if isinstance(arg_names, str):
         arg_names = map(str.strip, arg_name_list.split(','))
-
-    parameters = [inspect.Parameter(n, kind) for n in arg_names]
-    if member:
-        parameters = [inspect.Parameter('self', kind)] + parameters
+    if member and arg_names[0] != 'self':
+        arg_names = ['self'] + arg_names
     
-    return inspect.Signature(parameters)
+    return inspect.Signature([inspect.Parameter(n, kind) for n in arg_names])
 
 
 def wrap_with_signature(arg_name_list, member=False):
