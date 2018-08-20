@@ -421,7 +421,10 @@ def filterout_none(d):
 
 def make_variables_dict(variables_list_factory):
     """Make a dictionary from a variables list."""
-    return {var.name: var for var in variables_list_factory()}
+    if callable(variables_list_factory):
+        return {var.name: var for var in variables_list_factory()}
+    else:
+        return {var.name: var for var in variables_list_factory}
 
 
 def symbols_from(names):
