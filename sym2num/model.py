@@ -13,6 +13,7 @@ import collections
 import collections.abc
 import functools
 import inspect
+import itertools
 import re
 import types
 
@@ -45,7 +46,10 @@ class Base:
         if isinstance(f, function.SymbolicSubsFunction):
             return f.arguments
         
-        return [self.variables[v] for v in inspect.signature(f).parameters]
+        param_names = inspect.signature(f).parameters.keys()
+        if 'self' in self.variables:
+            param_names = itertools.chain(['self'], param_names)
+        return [self.variables[n] for n in param_names]
     
     @functools.lru_cache()
     def default_function_output(self, fname):
