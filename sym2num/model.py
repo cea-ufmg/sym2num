@@ -81,13 +81,13 @@ class Base:
         setattr(self, name, deriv)
 
 
-def print_class(name, model, functions=None, sparse=None, assignments={}):
-    model_printer = ModelPrinter(name, model, functions, sparse, assignments)
+def print_class(name, model, **options):
+    model_printer = ModelPrinter(name, model, **options)
     return model_printer.print_class()
 
 
-def compile_class(name, model, functions=None, sparse=None, assignments={}):
-    model_printer = ModelPrinter(name, model, functions, sparse, assignments)
+def compile_class(name, model, **options):
+    model_printer = ModelPrinter(name, model, **options)
     return model_printer.class_obj()
 
 
@@ -116,25 +116,38 @@ class ModelPrinter:
     def template(cls):
         return jinja2.Template(model_template_src)
     
-    def __init__(self, name, model, functions=None, sparse=None,assignments={}):
+    def __init__(self, name, model, **options):
         self.name = name
         """Name of the generated class."""
         
         self.model = model
         """The underlying symbolic model."""
+
+        try:
+            assignments = options['assignments']
+        except KeyError:
+            assignments = getattr(model, 'generate_assignments', {})
+        self.assignments = assignments
+        """Mapping of simple assignments to be made in the class code."""
         
-        self.assignments = (assignments 
-                            or getattr(model, 'generate_assignments', {}))
-        """Simple assignments to be made in the class code."""
+        try:
+            functions = options['functions']
+        except KeyError:
+            functions = getattr(model, 'generate_functions', [])
+
+        try:
+            sparse = options['sparse']
+        except KeyError:
+            sparse = getattr(model, 'generate_sparse', [])
         
         f_specs = []
-        for fname in functions or getattr(model, 'generate_functions', []):
+        for fname in functions:
             output = self.model.default_function_output(fname)
             arguments = self.model.default_function_arguments(fname)
             f_specs.append((fname, output, arguments))
         
         sparse_indices = collections.OrderedDict()
-        for spec in sparse or getattr(model, 'generate_sparse', []):
+        for spec in sparse:
             fname, selector = (spec, None) if utils.isstr(spec) else spec
             output = model.default_function_output(fname)
             arguments = model.default_function_arguments(fname)
