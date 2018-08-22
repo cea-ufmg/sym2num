@@ -83,9 +83,9 @@ class SymbolArray(Variable, sympy.Array):
             return super().__len__()
     
     @property
-    def broadcast_elements(self):
+    def broadcast_elements(self) -> list:
         """List of elements which should be broadcast to generate the output."""
-        return [self[(0,) * self.rank()]]
+        return [] if len(self) == 0 else [self[(0,) * self.rank()]]
     
     def subs_dict(self, value):
         value_array = sympy.Array(value)
@@ -135,6 +135,11 @@ def elements_and_shape(array_like):
     #Detect if we are at a scalar element
     if (utils.isstr(array_like) or not utils.isiterable(array_like)):
         return [array_like], ()
+
+    #Detect empty iterable
+    array_like = list(array_like)
+    if len(array_like) == 0:
+        return [], (0,)
     
     #We have an iterable, apply self to its elements
     subelements, subshapes = zip(*[elements_and_shape(e) for e in array_like])
