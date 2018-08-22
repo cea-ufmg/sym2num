@@ -70,17 +70,20 @@ class SymbolArray(Variable, sympy.Array):
         
         if self.rank() > 0 and self.name in symbol_names:
             raise ValueError("positive-rank array name and symbols must differ")
-    
-    def ndenumerate(self):
-        for ind in np.ndindex(*self.shape):
-            yield ind, self[ind]
-    
+        
     def __len__(self):
         """Overrides `sympy.Array.__len__` which fails for rank-0 Arrays"""
         if self.shape == ():
             return 1
         else:
             return super().__len__()
+
+    def __getitem__(self, index):
+        return sympy.Array(self, self.shape)[index]
+
+    def ndenumerate(self):
+        for ind in np.ndindex(*self.shape):
+            yield ind, self[ind]
     
     @property
     def broadcast_elements(self) -> list:
