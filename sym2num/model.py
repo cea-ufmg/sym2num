@@ -72,7 +72,7 @@ class Base:
             wrt_names = (wrt_names,)
         
         out = self.default_function_output(fname)
-        for wrt_name in reversed(wrt_names):
+        for wrt_name in wrt_names:
             wrt = self.variables[wrt_name]
             out = sympy.derive_by_array(out, wrt)
         
