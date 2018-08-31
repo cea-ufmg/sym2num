@@ -64,16 +64,16 @@ class Printer(SciPyPrinter):
         else:
             return arr_str
 
-    def _print_UnivariateSpline(self, expr):
-        x = self.doprint(expr.args[0])
+    def _print_UnivariateSplineBase(self, expr):
+        x = self._print(expr.args[0])
         if expr.dx == 0:
             return f'{expr.__class__.__name__}({x})'
         else:
             return f'{expr.__class__.__name__}({x}, dx={expr.dx})'
-
+        
     def _print_BivariateSplineBase(self, expr):
-        x = self.doprint(expr.args[0])
-        y = self.doprint(expr.args[1])
+        x = self._print(expr.args[0])
+        y = self._print(expr.args[1])
         if expr.dx == 0 and expr.dy == 0:
             return f'{expr.__class__.__name__}({x}, {y})'
         else:

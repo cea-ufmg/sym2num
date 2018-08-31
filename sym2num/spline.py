@@ -7,7 +7,7 @@ import sympy
 from sympy.core.function import ArgumentIndexError
 
 
-class UnivariateSpline(sympy.Function):
+class UnivariateSplineBase(sympy.Function):
     nargs = (1, 2)
     """Number of function arguments."""
     
@@ -24,7 +24,7 @@ class UnivariateSpline(sympy.Function):
         return self.__class__(self.args[0], dx + 1)
 
 
-class BivariateSpline(sympy.Function):
+class BivariateSplineBase(sympy.Function):
     nargs = (2, 4)
     """Number of function arguments."""
     
@@ -46,12 +46,12 @@ class BivariateSpline(sympy.Function):
         return self.__class__(*self.args[:2], dx, dy)
 
 
-def NamedUnivariateSpline(name):
+def UnivariateSpline(name):
     metaclass = type(UnivariateSplineBase)
-    return metaclass(name, (UnivariateSplineBase,), {})
+    return metaclass(name, (UnivariateSplineBase,), {'name': name})
 
 
-def NamedBivariateSpline(name):
+def BivariateSpline(name):
     metaclass = type(BivariateSplineBase)
-    return metaclass(name, (BivariateSplineBase,), {})
+    return metaclass(name, (BivariateSplineBase,), {'name': name})
 

@@ -34,6 +34,50 @@ class Variable:
         return {self.name}
 
 
+class SymbolObject(Variable):
+    def __init__(self, name, *args):
+        self.name = name
+        self.members = {}
+        for v in args:
+            self.members[v.name] = v
+            v.name = f'{name}.{v.name}'
+    
+    def __getattr__(self, name):
+        try: 
+            return self.members[name]
+        except KeyError:
+            raise AttributeError(f'{name} is not a member of {self.name}')
+    
+    def print_prepare_validate(self, printer):
+        """Returns code to validate and prepare the variable from arguments."""
+        out = (v.print_prepare_validate(printer) for v in self.members.values())
+        return str.join('\n', out)
+    
+    @property
+    def broadcast_elements(self):
+        """List of elements which should be broadcast to generate the output."""
+        out = []
+        for v in self.members.values():
+            out.extend(v.broadcast_elements)
+        return out
+    
+    def subs_dict(self, value):
+        """Dictionary of substitutions to evaluate with a given value."""
+        out = {}
+        for name, v in self.members.items():
+            out.update(v.subs_dict(getattr(value, name)))
+        return out
+    
+    @property
+    def identifiers(self):
+        """Set of identifiers defined in this variable's code."""
+        out = {self.name}
+        for v in self.members.values():
+            out.update(v.identifiers)
+        return out
+
+
+
 class SymbolArray(Variable, sympy.Array):
     """Represents array of symbols for code generation."""
     
@@ -104,7 +148,9 @@ class SymbolArray(Variable, sympy.Array):
     @utils.cached_class_property
     def prepare_validate_template(cls):
         return jinja2.Template(inspect.cleandoc("""
+        {% if '.' not in v.name -%}
         {{v.name}} = {{np}}.asarray({{v.name}}, dtype={{np}}.{{v.dtype}})
+        {% endif -%}
         {% if v.rank() -%}
         if {{v.name}}.shape[-{{v.rank()}}:] != {{v.shape}}:
         {%- set expected %}(...,{{v.shape |join(",")}}){% endset %}
