@@ -6,14 +6,43 @@ import numbers
 import sympy
 from sympy.core.function import ArgumentIndexError
 
+from . import utils
 
-class UnivariateSplineBase(sympy.Function):
+
+class SplineBase(sympy.Function):
+    """Base class for code generation splines."""
+    
+    @classmethod
+    def print_prepare_validate(cls, printer):
+        """Returns code to validate and prepare the variable from arguments."""
+        return ''
+    
+    @utils.classproperty
+    def broadcast_elements(cls):
+        """List of elements which should be broadcast to generate the output."""
+        return []
+    
+    @classmethod
+    def subs_dict(cls, value):
+        """Dictionary of substitutions to evaluate with a given value."""
+        return {cls: value}
+    
+    @utils.classproperty
+    def identifiers(cls):
+        """Set of identifiers defined in this variable's code."""
+        return {cls.name}
+
+
+class UnivariateSplineBase(SplineBase):
     nargs = (1, 2)
     """Number of function arguments."""
     
     @property
     def dx(self):
-        return self.args[1] if len(self.args) == 2 else 0
+        if len(self.args) == 1:
+            return 0
+        assert isinstance(self.args[1], (numbers.Integral, sympy.Integer))
+        return self.args[1]
     
     def fdiff(self, argindex=1):
         if argindex == 2:
@@ -24,17 +53,23 @@ class UnivariateSplineBase(sympy.Function):
         return self.__class__(self.args[0], dx + 1)
 
 
-class BivariateSplineBase(sympy.Function):
+class BivariateSplineBase(SplineBase):
     nargs = (2, 4)
     """Number of function arguments."""
     
     @property
     def dx(self):
-        return self.args[2] if len(self.args) == 4 else 0
-
+        if len(self.args) == 2:
+            return 0
+        assert isinstance(self.args[2], (numbers.Integral, sympy.Integer))
+        return self.args[2]
+    
     @property
     def dy(self):
-        return self.args[3] if len(self.args) == 4 else 0
+        if len(self.args) == 2:
+            return 0
+        assert isinstance(self.args[3], (numbers.Integral, sympy.Integer))
+        return self.args[3]
     
     def fdiff(self, argindex=1):
         if argindex > 2:
@@ -54,4 +89,3 @@ def UnivariateSpline(name):
 def BivariateSpline(name):
     metaclass = type(BivariateSplineBase)
     return metaclass(name, (BivariateSplineBase,), {'name': name})
-

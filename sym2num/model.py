@@ -22,7 +22,7 @@ import numpy as np
 import jinja2
 import sympy
 
-from . import function, utils, printing
+from . import function, printing, utils, var
 
 
 class Base:
@@ -34,15 +34,22 @@ class Base:
         for spec in getattr(self, 'derivatives', []):
             self.add_derivative(*spec)
     
+    def __getattr__(self, name):
+        try:
+            return getattr(self.variables['self'], name)
+        except KeyError:
+            msg = f"'{type(self).__name__}' object has no attribute '{name}'"
+            raise AttributeError(msg)
+    
     def default_function_arguments(self, fname):
-        """Function output for the default arguments."""
+        """Default arguments of the model functions."""
         try:
             f = getattr(self, fname)
         except AttributeError:
             raise ValueError("{} member not found".format(fname))
         except TypeError:
             raise TypeError("function name must be a string")
-
+        
         if isinstance(f, function.SymbolicSubsFunction):
             return f.arguments
         
@@ -445,14 +452,18 @@ def symbols_from(names):
     def decorator(f):
         @functools.wraps(f)
         def wrapper(self, *args):
+            a = attrdict.AttrDict()
+            if len(args) > 1 and var.isself(args[0]):
+                a.update(args[0].subs_dict(args[0]))
+                args = args[1:]
             if len(args) != len(name_list):
                 msg = "{} takes {} arguments ({} given)"
                 raise TypeError(msg.format(f.__name__,len(name_list),len(args)))
-            a = attrdict.AttrDict()
             for name, arg in zip(name_list, args):
                 subs_dict = self.variables[name].subs_dict(arg)
                 for symbol, value in subs_dict.items():
-                    a[symbol.name] = value
+                    name = symbol if utils.isstr(symbol) else symbol.name
+                    a[name] = value
             return f(self, a)
         wrapper.__signature__ = utils.make_signature(name_list, member=True)
         return wrapper

@@ -35,6 +35,22 @@ class cached_class_property:
         return self.value
 
 
+class classproperty:
+    """Same as property(), but passes type(obj) instead of obj to methods."""
+    
+    def __init__(self, fget, doc=None):
+        assert callable(fget)
+        self.fget = fget
+        if doc is None and fget is not None:
+            doc = fget.__doc__
+        self.__doc__ = doc
+    
+    def __get__(self, obj, cls=None):
+        if cls is None:
+            cls = type(obj)
+        return self.fget(cls)
+
+
 def init_static_variable(f):
     return f()
 

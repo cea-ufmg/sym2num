@@ -8,7 +8,7 @@ import sympy
 
 from sympy.printing.pycode import SciPyPrinter
 
-from . import utils
+from . import spline, utils
 
 
 class Printer(SciPyPrinter):
@@ -64,18 +64,29 @@ class Printer(SciPyPrinter):
         else:
             return arr_str
 
-    def _print_UnivariateSplineBase(self, expr):
-        x = self._print(expr.args[0])
-        if expr.dx == 0:
-            return f'{expr.__class__.__name__}({x})'
+    def _print(self, e):
+        # Override print subsystem to prevent collisions of spline names and
+        # standard functions like 'gamma' or 'exp'
+        if isinstance(e, spline.UnivariateSplineBase):
+            return self._print_UnivariateSplineBase(e)
+        elif isinstance(e, spline.BivariateSplineBase):
+            return self._print_BivariateSplineBase(e)
         else:
-            return f'{expr.__class__.__name__}({x}, dx={expr.dx})'
+            return super()._print(e)
+    
+    def _print_UnivariateSplineBase(self, e):
+        x = self._print(e.args[0])
+        name = getattr(e, 'name', None) or e.__class__.__name__
+        if e.dx == 0:
+            return f'{name}({x})'
+        else:
+            return f'{name}({x}, dx={e.dx})'
         
-    def _print_BivariateSplineBase(self, expr):
-        x = self._print(expr.args[0])
-        y = self._print(expr.args[1])
-        if expr.dx == 0 and expr.dy == 0:
-            return f'{expr.__class__.__name__}({x}, {y})'
+    def _print_BivariateSplineBase(self, e):
+        x = self._print(e.args[0])
+        y = self._print(e.args[1])
+        name = getattr(e, 'name', None) or e.__class__.__name__
+        if e.dx == 0 and e.dy == 0:
+            return f'{name}({x}, {y})'
         else:
-            args = f'{x}, {y}, dx={expr.dx}, dy={expr.dy}'
-            return f'{expr.__class__.__name__}({args})'
+            return f'{name}({x}, {y}, dx={e.dx}, dy={e.dy})'

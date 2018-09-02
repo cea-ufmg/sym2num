@@ -9,7 +9,7 @@ import jinja2
 import numpy as np
 import sympy
 
-from . import utils
+from . import spline, utils
 
 
 class Variable:
@@ -34,6 +34,14 @@ class Variable:
         return {self.name}
 
 
+def UnivariateSplineVariable(name):
+    return spline.UnivariateSpline(name, Variable)
+
+
+def BivariateSplineVariable(name):
+    return spline.BivariateSpline(name, Variable)
+
+
 class SymbolObject(Variable):
     def __init__(self, name, *args):
         self.name = name
@@ -50,8 +58,9 @@ class SymbolObject(Variable):
     
     def print_prepare_validate(self, printer):
         """Returns code to validate and prepare the variable from arguments."""
-        out = (v.print_prepare_validate(printer) for v in self.members.values())
-        return str.join('\n', out)
+        members = self.members.values()
+        lines = (v.print_prepare_validate(printer) for v in members)
+        return str.join('\n', (line for line in lines if line))
     
     @property
     def broadcast_elements(self):
@@ -140,7 +149,7 @@ class SymbolArray(Variable, sympy.Array):
             msg = "Invalid shape for argument, expected {} and got {}"
             raise ValueError(msg.format(self.shape, value_array.shape))
         
-        subs = {}
+        subs = {self.name: value}
         for i in np.ndindex(*self.shape):
             subs[self[i]] = value_array[i]
         return subs
@@ -203,3 +212,7 @@ def elements_and_shape(array_like):
         elements.extend(subelement)
     shape = (len(subelements),) + subshapes[0]
     return elements, shape
+
+
+def isself(var):
+    return isinstance(var, SymbolObject) and var.name == 'self'
