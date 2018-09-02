@@ -26,7 +26,7 @@ class Variable:
     
     def subs_dict(self, value):
         """Dictionary of substitutions to evaluate with a given value."""
-        return {self: value}
+        return {self: value, self.name: value}
     
     @property
     def identifiers(self):
@@ -74,7 +74,8 @@ class SymbolObject(Variable):
         """Dictionary of substitutions to evaluate with a given value."""
         out = {}
         for name, v in self.members.items():
-            out.update(v.subs_dict(getattr(value, name)))
+            val_attr = out[name] = getattr(value, name)
+            out.update(v.subs_dict(val_attr))
         return out
     
     @property
@@ -151,7 +152,7 @@ class SymbolArray(Variable, sympy.Array):
         
         subs = {self.name: value}
         for i in np.ndindex(*self.shape):
-            subs[self[i]] = value_array[i]
+            subs[self[i].name] = subs[self[i]] = value_array[i]
         return subs
     
     @utils.cached_class_property

@@ -460,10 +460,7 @@ def symbols_from(names):
                 msg = "{} takes {} arguments ({} given)"
                 raise TypeError(msg.format(f.__name__,len(name_list),len(args)))
             for name, arg in zip(name_list, args):
-                subs_dict = self.variables[name].subs_dict(arg)
-                for symbol, value in subs_dict.items():
-                    name = symbol if utils.isstr(symbol) else symbol.name
-                    a[name] = value
+                a.update(self.variables[name].subs_dict(arg))
             return f(self, a)
         wrapper.__signature__ = utils.make_signature(name_list, member=True)
         return wrapper

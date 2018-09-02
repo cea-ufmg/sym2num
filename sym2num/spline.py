@@ -25,7 +25,8 @@ class SplineBase(sympy.Function):
     @classmethod
     def subs_dict(cls, value):
         """Dictionary of substitutions to evaluate with a given value."""
-        return {cls: value}
+        name = getattr(cls, 'name', None) or cls.__name__
+        return {cls: value, name: value}
     
     @utils.classproperty
     def identifiers(cls):

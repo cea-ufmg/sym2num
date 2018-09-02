@@ -6,9 +6,6 @@ import sympy
 from sym2num import model, spline, utils, var
 
 
-import imp
-[imp.reload(m) for m in (utils, spline, var, model)]
-
 class ExampleModel(model.Base):
     
     derivatives = [('df_dx', 'f', 'x'), ('df_dx_dt', 'df_dx', 't')]
@@ -41,7 +38,7 @@ class ExampleModel(model.Base):
     @model.symbols_from('t, x, y')
     def g(self, a):
         """Another example method."""
-        return sympy.Array([self.T(a.V, a.p)**2])
+        return sympy.Array([a.T(a.V, a.rho)**2])
 
 
 if __name__ == '__main__':
