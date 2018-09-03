@@ -40,13 +40,13 @@ class Base:
         except KeyError:
             msg = f"'{type(self).__name__}' object has no attribute '{name}'"
             raise AttributeError(msg)
-    
-    def default_function_arguments(self, fname):
-        """Default arguments of the model functions."""
+
+    def function_codegen_arguments(self, fname):
+        """Function argument specifications for code generation."""
         try:
             f = getattr(self, fname)
         except AttributeError:
-            raise ValueError("{} member not found".format(fname))
+            raise ValueError(f"{fname} member not found")
         except TypeError:
             raise TypeError("function name must be a string")
         
@@ -71,7 +71,9 @@ class Base:
         if isinstance(f, function.SymbolicSubsFunction):
             return f.output
         
-        args = self.default_function_arguments(fname)
+        args = self.function_codegen_arguments(fname)
+        if len(args) > 0 and args[0].name == 'self':
+            args = args[1:]
         return f(*args)
     
     def add_derivative(self, name, fname, wrt_names):
@@ -83,7 +85,7 @@ class Base:
             wrt = self.variables[wrt_name]
             out = sympy.derive_by_array(out, wrt)
         
-        args = self.default_function_arguments(fname)
+        args = self.function_codegen_arguments(fname)
         deriv = function.SymbolicSubsFunction(args, out)
         setattr(self, name, deriv)
 
@@ -150,14 +152,14 @@ class ModelPrinter:
         f_specs = []
         for fname in functions:
             output = self.model.default_function_output(fname)
-            arguments = self.model.default_function_arguments(fname)
+            arguments = self.model.function_codegen_arguments(fname)
             f_specs.append((fname, output, arguments))
         
         sparse_indices = collections.OrderedDict()
         for spec in sparse:
             fname, selector = (spec, None) if utils.isstr(spec) else spec
             output = model.default_function_output(fname)
-            arguments = model.default_function_arguments(fname)
+            arguments = model.function_codegen_arguments(fname)
             values, indices = utils.sparsify(output, selector)
             f_specs.append((fname + '_val', values, arguments))
             sparse_indices[fname + '_ind'] = indices
@@ -453,9 +455,9 @@ def symbols_from(names):
         @functools.wraps(f)
         def wrapper(self, *args):
             a = attrdict.AttrDict()
-            if len(args) > 1 and var.isself(args[0]):
-                a.update(args[0].subs_dict(args[0]))
-                args = args[1:]
+            instance_var =  self.variables.get('self', None)
+            if instance_var:
+                a.update(instance_var.subs_dict(instance_var))
             if len(args) != len(name_list):
                 msg = "{} takes {} arguments ({} given)"
                 raise TypeError(msg.format(f.__name__,len(name_list),len(args)))

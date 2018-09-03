@@ -213,7 +213,3 @@ def elements_and_shape(array_like):
         elements.extend(subelement)
     shape = (len(subelements),) + subshapes[0]
     return elements, shape
-
-
-def isself(var):
-    return isinstance(var, SymbolObject) and var.name == 'self'
