@@ -80,13 +80,13 @@ class Printer(SciPyPrinter):
         if e.dx == 0:
             return f'{name}({x})'
         else:
-            return f'{name}({x}, dx={e.dx})'
+            return f'{name}({x}, {e.dx})'
         
     def _print_BivariateSplineBase(self, e):
         x = self._print(e.args[0])
         y = self._print(e.args[1])
         name = getattr(e, 'name', None) or e.__class__.__name__
         if e.dx == 0 and e.dy == 0:
-            return f'{name}({x}, {y})'
+            return f'{name}({x}, {y}, grid=False)'
         else:
-            return f'{name}({x}, {y}, dx={e.dx}, dy={e.dy})'
+            return f'{name}({x}, {y}, dx={e.dx}, dy={e.dy}, grid=False)'
