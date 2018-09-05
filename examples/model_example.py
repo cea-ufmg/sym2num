@@ -1,6 +1,8 @@
 """Example of model code generation."""
 
 
+import functools
+
 import sympy
 
 from sym2num import model, spline, utils, var
@@ -12,35 +14,34 @@ class ExampleModel(model.Base):
     generate_functions = ['f', 'df_dx', 'g']
     generate_sparse = ['df_dx', 'f']
     
-    @model.make_variables_dict
-    def variables():
+    @utils.classproperty
+    @functools.lru_cache()
+    def variables(cls):
         """Model variables definition."""
-        return [
-            var.SymbolObject('self', 
-                             var.SymbolArray('consts', ['M', 'rho', 'h']), 
-                             spline.BivariateSpline('T')),
-            var.SymbolArray('x', ['u', 'v', 'V']),
-            var.SymbolArray('t'),
-            var.SymbolArray('y', [['p'], ['q']])
-        ]
+        vars = [var.SymbolObject('self', 
+                                 var.SymbolArray('consts', ['M', 'rho', 'h']),
+                                 spline.BivariateSpline('T')),
+                var.SymbolArray('x', ['u', 'v', 'V']),
+                var.SymbolArray('t'),
+                var.SymbolArray('y', [['p'], ['q']])]
+        return var.make_dict(vars)
     
-
     @property
     def generate_assignments(self):
         return dict(nx=len(self.variables['x']),
                     yshape=self.variables['y'].shape)
     
-    @model.symbols_from('t, x')
-    def f(self, a):
+    @model.collect_symbols
+    def f(self, t, x, *, a):
         """Example method."""
         return sympy.Array([a.v, a.t**2 + a.u])
     
-    @model.symbols_from('t, x, y')
-    def g(self, a):
+    @model.collect_symbols
+    def g(self, t, x, y, *, a):
         """Another example method."""
         return sympy.Array([a.T(a.V, a.rho)**2])
 
 
 if __name__ == '__main__':
     e = ExampleModel()
-    print(model.print_class("ExampleModel", e))
+    print(model.print_class(e))

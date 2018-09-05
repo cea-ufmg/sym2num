@@ -35,12 +35,15 @@ class Base:
             self.add_derivative(*spec)
     
     def __getattr__(self, name):
+        assert name != 'variables' # Otherwise we fall in an infinite loop
+        
         try:
-            return getattr(self.variables['self'], name)
+            self_var = self.variables['self']
         except KeyError:
             msg = f"'{type(self).__name__}' object has no attribute '{name}'"
             raise AttributeError(msg)
-
+        return getattr(self_var, name)
+    
     def function_codegen_arguments(self, fname):
         """Function argument specifications for code generation."""
         try:
@@ -90,13 +93,13 @@ class Base:
         setattr(self, name, deriv)
 
 
-def print_class(name, model, **options):
-    model_printer = ModelPrinter(name, model, **options)
+def print_class(model, **options):
+    model_printer = ModelPrinter(model, **options)
     return model_printer.print_class()
 
 
-def compile_class(name, model, **options):
-    model_printer = ModelPrinter(name, model, **options)
+def compile_class(model, **options):
+    model_printer = ModelPrinter(model, **options)
     return model_printer.class_obj()
 
 
@@ -125,7 +128,10 @@ class ModelPrinter:
     def template(cls):
         return jinja2.Template(model_template_src)
     
-    def __init__(self, name, model, **options):
+    def __init__(self, model, **options):
+        name = (getattr(model, 'generated_name', None)
+                or options.get('name', None) 
+                or f'Generated{type(model).__name__}')
         self.name = name
         """Name of the generated class."""
         
@@ -191,279 +197,52 @@ class ModelPrinter:
         return env[self.name]
 
 
-class_template = '''\
-class {{generated_name}}({{class_signature}}):
-    """Generated code for symbolic model {{sym_name}}"""
+def collect_symbols(f):
+    sig = inspect.signature(f)
+    if len(sig.parameters) < 2:
+        raise ValueError(f"method {f.__name__} should have at least 2 "
+                         "parameters, 'self' and the collected symbols")
+    param_list = list(sig.parameters)
+    collected_symbols_arg_name = param_list[-1]
+    wrapped_arg_names = list(sig.parameters)[1:-1]
+    nargs_wrapped = len(wrapped_arg_names)
+    
+    @functools.wraps(f)
+    def wrapper(self, *args, **kwargs):
+        # Validate arguments
+        nargs_in = len(args) + len(kwargs)
+        if collected_symbols_arg_name in kwargs:
+            msg = (f"{f.__name__}() argument '{collected_symbols_arg_name}' "
+                   "is filled out by the decorator collect_symbols")
+            raise TypeError(msg)
+        if nargs_in != nargs_wrapped:
+            raise TypeError(f"{f.__name__}() takes {nargs_wrapped} but "
+                            f"{nargs_in} were given")
 
-    signatures = {{signatures}}
-    """Model function signatures."""
-
-    var_specs = {{specs}}
-    """Specification of the model variables."""
-    {% for name, value in sparse_inds.items() %}
-    {{name}}_ind = {{value}}
-    """Nonzero indices of `{{name}}`."""
-    {% endfor -%}
-    {% for function in functions %}
-    @staticmethod
-    {{ function | indent}}
-    {% endfor -%}
-'''
-
-
-parametrized_call_template = '''\
-def {fname}(self, {signature}):
-    """Parametrized version of `{fname}`."""
-    return self.call(_wrapped_function, {args})
-'''
-
-
-class SymbolicModel(metaclass=abc.ABCMeta):
-    symbol_assumptions = {'real': True}
-
-    def __init__(self):
-        self._init_variables()
-        self._init_functions()
-        self._init_derivatives()
-        self._init_sparse()
-    
-    def _init_variables(self):
-        """Initialize the model variables."""
-        assumptions = self.symbol_assumptions
-        self.vars = {}
-        self.var_specs = {}
-        for var_name in self.var_names:
-            specs = getattr(self, var_name)
-            var = np.zeros(np.shape(specs), dtype=object)
-            for index, element_name in np.ndenumerate(specs):
-                var[index] = sympy.Symbol(element_name, **assumptions)
-            self.vars[var_name] = var
-            self.var_specs[var_name] = specs
-    
-    def _init_functions(self):
-        """Initialize the model functions."""
-        self.functions = {}
-        for fname in self.function_names:
-            f = getattr(self, fname)
-            if not callable(f):
-                raise TypeError('Function `{}` not callable.'.format(fname))
-            if isinstance(f, types.MethodType):
-                argnames = inspect.getfullargspec(f).args[1:]
-            else:
-                argnames = inspect.getfullargspec(f).args
-            args = [(name, self.vars[name]) for name in argnames]
-            self.functions[fname] = function.SymbolicFunction(f, args)
-    
-    def _init_derivatives(self):
-        """Initialize model derivatives."""
-        for spec in getattr(self, 'derivatives', []):
-            self.add_derivative(*spec)
-    
-    def _init_sparse(self):
-        """Initialize the sparse functions."""
-        self.sparse_inds = {}
-        for spec in getattr(self, 'sparse', []):
-            if isinstance(spec, str):
-                fname = spec
-                selector = lambda *inds: np.ones_like(inds[0], dtype=bool)
-            else:
-                fname, selector = spec
-            f = self.functions[fname]
-            inds = np.nonzero(f.out)
-            inds = [ind[selector(*inds)] for ind in inds]
-            fval = f.out[inds]
-            fobj = function.SymbolicFunction(fval, f.args, fname + '_val')
-            self.functions[fobj.name] = fobj
-            self.sparse_inds[fname] = tuple(ind.tolist() for ind in inds)
-    
-    @property
-    @abc.abstractmethod
-    def var_names(self):
-        """List of the model variable names."""
-        raise NotImplementedError("Pure abstract method.")
-
-    @property
-    @abc.abstractmethod
-    def function_names(self):
-        """List of the model function names."""
-        raise NotImplementedError("Pure abstract method.")
-    
-    @property
-    def imports(self):
-        meta = getattr(self, 'meta', None)
-        if callable(meta):
-            return ('import ' + meta.__module__,)
-        else:
-            return ()
-    
-    @property
-    def generated_name(self):
-        """Name of generated class."""
-        return type(self).__name__
-    
-    @property
-    def class_signature(self):
-        """Generated model class signature with metaclass definition."""
-        meta = getattr(self, 'meta', None)
-        if meta is None:
-            return ''
-        elif isinstance(meta, str):
-            return 'metaclass=' + meta
-        else:
-            return 'metaclass={}.{}'.format(meta.__module__, meta.__qualname__)
-    
-    def pack(self, name, d={}, **kwargs):
-        d = dict(d, **kwargs)
-        var = self.vars[name]
-        ret = np.zeros(var.shape, dtype=object)
-        for index, elem in np.ndenumerate(var):
-            try:
-                ret[index] = d[elem.name]
-            except KeyError:
-                pass
-        return ret
-    
-    def symbols(self, *args, **kwargs):
-        symbol_list = utils.flat_cat(*args)
-        symbols = attrdict.AttrDict({s.name: s for s in symbol_list})
-        for argname, value in kwargs.items():
-            var = self.vars[argname]
-            for i, xi in np.ndenumerate(value):
-                symbols[var[i].name] = xi
-        return symbols
-    
-    def print_class(self, printer):
-        tags = dict(
-            generated_name=self.generated_name, 
-            specs=self.var_specs, 
-            sym_name=type(self).__name__,
-            class_signature=self.class_signature,
-            sparse_inds=self.sparse_inds,
-        )
-        tags['signatures'] = {name: list(f.args) 
-                              for name, f in self.functions.items()}
-        tags['functions'] = [fsym.print_def(printer)
-                             for fsym in self.functions.values()]
-        return jinja2.Template(class_template).render(tags)
-
-    def print_module(self, printer):
-        imports = '\n'.join(printer.imports + self.imports)
-        class_code = self.print_class(printer)
-        return '{}\n\n{}'.format(imports, class_code)
-    
-    def add_derivative(self, name, fname, wrt_names):
-        if isinstance(wrt_names, str):
-            wrt_names = (wrt_names,)
+        # Assert that the needed model variables were specified
+        model_vars = self.variables
+        assert all(arg_name in model_vars for arg_name in wrapped_arg_names)
         
-        f = self.functions[fname]
-        for wrt_name in reversed(wrt_names):
-            f = f.diff(self.vars[wrt_name], name)
+        # Create substitution dictionary
+        subs = {}
+        if 'self' in model_vars:
+            subs.update(model_vars['self'].subs_dict(self))
+        for name, value in zip(wrapped_arg_names, args):
+            subs.update(model_vars[name].subs_dict(value))
+        for name, value in kwargs.items():
+            var = model_vars.get(name, None)
+            if var is None:
+                raise TypeError(f"{f.__name__}() got an unexpected keyword "
+                                f"argument '{name}'")
+            subs.update(model_vars[name].subs_dict(value))
         
-        self.functions[name] = f
-
-
-def class_obj(model, printer):
-    code = model.print_module(printer)
-    context = {}
-    exec(code, context)
-    return context[model.generated_name]
-
-
-class ParametrizedModel:
-    def __init__(self, params={}):
-        # Save a copy of the given params
-        self._params = {k: np.asarray(v) for k, v in params.items()}
-        
-        # Add default parameters for the empty variables
-        for name, spec in self.var_specs.items():
-            if np.size(spec) == 0 and name not in params:
-                self._params[name] = np.array([])
-    
-    def parametrize(self, params={}, **kwparams):
-        """Parametrize a new class instance with the given + current params."""
-        new_params = self._params.copy()
-        new_params.update(params)
-        new_params.update(kwparams)
-        return type(self)(new_params)
-    
-    def call_args(self, f, *args, **kwargs):
-        fargs = self.signatures[f.__name__]
-        call_args = {k: v for k, v in self._params.items() if k in fargs}
-        call_args.update(filterout_none(kwargs))
-        call_args.update(filterout_none(zip(fargs, args)))
-        return call_args
-    
-    def call(self, f, *args, **kwargs):
-        call_args = self.call_args(f, *args, **kwargs)
-        return f(**call_args)
-    
-    @staticmethod
-    def decorate(f):
-        args = inspect.getfullargspec(f).args
-        tags = {'fname': f.__name__, 
-                'signature': ', '.join('%s=None' % a for a in args),
-                'args': ', '.join(args)}
-        context = dict(_wrapped_function=f)
-        exec(parametrized_call_template.format(**tags), context)
-        return context[f.__name__]
-    
-    @classmethod
-    def meta(cls, name, bases, classdict):
-        # Add ourselves to the bases
-        if cls not in bases:
-            bases = bases + (cls,)
-        
-        # Decorate the model functions
-        for k, v in classdict.items():
-            if isinstance(v, staticmethod):
-                classdict[k] = cls.decorate(v.__func__)
-        
-        # Return the new class type
-        return type(name, bases, classdict)
-
-    @classmethod
-    def pack(cls, name, d, fill=0):
-        spec = np.array(cls.var_specs[name])
-        fill = np.asarray(fill)
-        ret = np.zeros(fill.shape + spec.shape)
-        ret[...] = fill[(...,) + (None,) * spec.ndim]
-        for index, elem_name in np.ndenumerate(spec):
-            try:
-                ret[(...,) + index] = d[elem_name]
-            except KeyError:
-                pass
-        return ret
-
-
-def filterout_none(d):
-    """Returns a mapping without the values which are `None`."""
-    items = d.items() if isinstance(d, collections.abc.Mapping) else d
-    return {k: v for k, v in items if v is not None}
-
-
-def make_variables_dict(variables_list_factory):
-    """Make a dictionary from a variables list."""
-    if callable(variables_list_factory):
-        return {var.name: var for var in variables_list_factory()}
-    else:
-        return {var.name: var for var in variables_list_factory}
-
-
-def symbols_from(names):
-    name_list = [name.strip() for name in names.split(',')]
-    def decorator(f):
-        @functools.wraps(f)
-        def wrapper(self, *args):
-            a = attrdict.AttrDict()
-            instance_var =  self.variables.get('self', None)
-            if instance_var:
-                a.update(instance_var.subs_dict(instance_var))
-            if len(args) != len(name_list):
-                msg = "{} takes {} arguments ({} given)"
-                raise TypeError(msg.format(f.__name__,len(name_list),len(args)))
-            for name, arg in zip(name_list, args):
-                a.update(self.variables[name].subs_dict(arg))
-            return f(self, a)
-        wrapper.__signature__ = utils.make_signature(name_list, member=True)
-        return wrapper
-    return decorator
+        # Create collected symbols AttrDict
+        symbols = attrdict.AttrDict()
+        for var, sub in subs.items():
+            name = getattr(var, 'name', None)
+            if name is not None:
+                symbols[name.split('.')[-1]] = sub
+        kwargs[collected_symbols_arg_name] = symbols
+        return f(self, *args, **kwargs)
+    wrapper.__signature__ = utils.make_signature(wrapped_arg_names, member=True)
+    return wrapper

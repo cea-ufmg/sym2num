@@ -26,7 +26,7 @@ class Variable:
     
     def subs_dict(self, value):
         """Dictionary of substitutions to evaluate with a given value."""
-        return {self: value, self.name: value}
+        return {self: value}
     
     @property
     def identifiers(self):
@@ -54,7 +54,7 @@ class SymbolObject(Variable):
         try: 
             return self.members[name]
         except KeyError:
-            raise AttributeError(f'{name} is not a member of {self.name}')
+            raise AttributeError(f'SymbolObject has no attribute {name}')
     
     def print_prepare_validate(self, printer):
         """Returns code to validate and prepare the variable from arguments."""
@@ -72,10 +72,9 @@ class SymbolObject(Variable):
     
     def subs_dict(self, value):
         """Dictionary of substitutions to evaluate with a given value."""
-        out = {}
+        out = {self: value}
         for name, v in self.members.items():
-            val_attr = out[name] = getattr(value, name)
-            out.update(v.subs_dict(val_attr))
+            out.update(v.subs_dict(getattr(value, name)))
         return out
     
     @property
@@ -150,15 +149,15 @@ class SymbolArray(Variable, sympy.Array):
             msg = "Invalid shape for argument, expected {} and got {}"
             raise ValueError(msg.format(self.shape, value_array.shape))
         
-        subs = {self.name: value}
+        subs = {self: value}
         for i in np.ndindex(*self.shape):
-            subs[self[i].name] = subs[self[i]] = value_array[i]
+            subs[self[i]] = value_array[i]
         return subs
     
     @utils.cached_class_property
     def prepare_validate_template(cls):
         return jinja2.Template(inspect.cleandoc("""
-        {% if '.' not in v.name -%}
+        {% if v.ensure_array -%}
         {{v.name}} = {{np}}.asarray({{v.name}}, dtype={{np}}.{{v.dtype}})
         {% endif -%}
         {% if v.rank() -%}
@@ -184,6 +183,11 @@ class SymbolArray(Variable, sympy.Array):
     def identifiers(self):
         """Set of identifiers defined in this variable's code."""
         return {self.name} | {elem.name for elem in self}
+
+    @property
+    def ensure_array(self):
+        """Whether to use `np.asarray` to ensure the argument is an ndarray."""
+        return '.' not in self.name
 
 
 def elements_and_shape(array_like):
@@ -213,3 +217,8 @@ def elements_and_shape(array_like):
         elements.extend(subelement)
     shape = (len(subelements),) + subshapes[0]
     return elements, shape
+
+
+def make_dict(var_list):
+    """Make a dictionary from a variables list."""
+    return {var.name: var for var in var_list}
