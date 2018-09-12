@@ -20,14 +20,14 @@ Topic :: Software Development'''
 
 setup(
     name="sym2num",
-    version="0.1.dev2",
+    version="0.2.dev0",
     packages=find_packages(),
     install_requires=["attrdict", "jinja2", "numpy", "sympy"],
     tests_require=["pytest"],
     
     # metadata for upload to PyPI
-    author="Dimas Abreu Dutra",
-    author_email="dimasadutra@gmail.com",
+    author="Dimas Abreu Archanjo Dutra",
+    author_email="dimasad@ufmg.br",
     description="Sympy to numpy code generator.",
     long_description=DESCRIPTION,
     platforms=["Windows", "Linux", "Solaris", "Mac OS-X", "Unix"],
