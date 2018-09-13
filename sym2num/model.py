@@ -11,6 +11,7 @@ Improvement ideas
 import abc
 import collections
 import collections.abc
+import contextlib
 import functools
 import inspect
 import itertools
@@ -277,3 +278,21 @@ def collect_symbols(f):
         return f(self, *args, **kwargs)
     wrapper.__signature__ = utils.make_signature(wrapped_arg_names, member=True)
     return wrapper
+
+
+class ModelArrayInitializer:
+    def __init__(self, **kwargs):
+        # Create all arrays
+        for name, shape in self.array_shape_map.items():
+            if name.startswith('self.') and not name.count('.', 5):
+                setattr(self, name[5:], np.zeros(shape))
+        
+        # Initialize the arguments
+        symbol_index_map = self.symbol_index_map
+        for symbol_name, value in kwargs.items():
+            with contextlib.suppress(KeyError):
+                array_name, index = symbol_index_map[symbol_name]
+                array_name_parts = array_name.split('.')
+                if len(array_name_parts) == 2 and array_name_parts[0] == 'self':
+                    getattr(self, array_name_parts[1])[index] = value
+
