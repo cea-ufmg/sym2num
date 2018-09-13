@@ -44,6 +44,14 @@ class Base:
             raise AttributeError(msg)
         return getattr(self_var, name)
     
+    @property
+    def symbol_index_map(self):
+        return var.symbol_index_map(self.variables.values())
+
+    @property
+    def array_shape_map(self):
+        return var.array_shape_map(self.variables.values())
+    
     def function_codegen_arguments(self, fname):
         """Function argument specifications for code generation."""
         try:
@@ -106,8 +114,10 @@ def compile_class(model, **options):
 model_template_src = '''\
 # Model imports
 import numpy as {{printer.numpy_alias}}
-
-class {{m.name}}:
+{% for import in m.imports -%}
+import {{ import }}
+{% endfor %}
+class {{m.name}}({{ m.bases | join(', ') }}):
     """Generated code for {{m.name}} from symbolic model."""
     {% for method in m.methods %}
     {{ method | indent }}
@@ -129,27 +139,17 @@ class ModelPrinter:
         return jinja2.Template(model_template_src)
     
     def __init__(self, model, **options):
-        name = (getattr(model, 'generated_name', None)
-                or options.get('name', None) 
-                or f'Generated{type(model).__name__}')
-        self.name = name
-        """Name of the generated class."""
-        
         self.model = model
         """The underlying symbolic model."""
-
-        try:
-            assignments = options['assignments']
-        except KeyError:
-            assignments = getattr(model, 'generate_assignments', {})
-        self.assignments = assignments
-        """Mapping of simple assignments to be made in the class code."""
+        
+        self.options = options
+        """Model printer options."""
         
         try:
             functions = options['functions']
         except KeyError:
             functions = getattr(model, 'generate_functions', [])
-
+        
         try:
             sparse = options['sparse']
         except KeyError:
@@ -175,7 +175,38 @@ class ModelPrinter:
 
         self.sparse_indices = sparse_indices
         """Indices of sparse functions."""
-        
+    
+    @property
+    def name(self):
+        """Name of the generated class."""
+        return (getattr(self.model, 'generated_name', None)
+                or self.options.get('name', None)
+                or f'Generated{type(self.model).__name__}')
+    
+    @property
+    def assignments(self):
+        """Mapping of simple assignments to be made in the class code."""
+        try:
+            return self.options['assignments']
+        except KeyError:
+            return getattr(self.model, 'generate_assignments', {})
+
+    @property
+    def imports(self):
+        """List of imports to include in the generated class code."""
+        try:
+            return self.options['imports']
+        except KeyError:
+            return getattr(self.model, 'generate_imports', [])
+
+    @property
+    def bases(self):
+        """List of names of base classes for the generated model class."""
+        try:
+            return self.options['bases']
+        except KeyError:
+            return getattr(self.model, 'generated_bases', [])
+    
     @property
     def methods(self):
         for fname, output, arguments in self._f_specs:

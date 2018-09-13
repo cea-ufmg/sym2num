@@ -222,3 +222,26 @@ def elements_and_shape(array_like):
 def make_dict(var_list):
     """Make a dictionary from a variables list."""
     return {var.name: var for var in var_list}
+
+
+def symbol_index_map(iterable):
+    """Return mapping of array element names to variable name and index."""
+    m = {}
+    for var in iterable:
+        if isinstance(var, SymbolObject):
+            m.update(symbol_index_map(var.members.values()))
+        elif isinstance(var, SymbolArray):
+            for ind, symbol in var.ndenumerate():
+                m[symbol.name] = (var.name, ind)
+    return m
+
+
+def array_shape_map(iterable):
+    """Return mapping of variable names to array shapes."""
+    m = {}
+    for var in iterable:
+        if isinstance(var, SymbolObject):
+            m.update(array_shape_map(var.members.values()))
+        elif isinstance(var, SymbolArray):
+            m[var.name] = var.shape
+    return m
