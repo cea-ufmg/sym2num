@@ -5,13 +5,18 @@ import functools
 
 import sympy
 
-from sym2num import model, spline, utils, var
+from sym2num import model, printing, utils, var
 
+
+import imp
+[imp.reload(m) for m in [var, printing, model]]
 
 class ExampleModel(model.Base):
     
-    derivatives = [('df_dx', 'f', 'x'), ('df_dx_dt', 'df_dx', 't')]
-    generate_functions = ['f', 'df_dx', 'g']
+    derivatives = [('df_dx', 'f', 'x'), 
+                   ('df_dx_dt', 'df_dx', 't'),
+                   ('dg_dx', 'g', 'x')]
+    generate_functions = ['f', 'df_dx', 'g', 'dg_dx']
     generate_sparse = ['df_dx', 'f']
     
     @utils.classproperty
@@ -20,7 +25,7 @@ class ExampleModel(model.Base):
         """Model variables definition."""
         vars = [var.SymbolObject('self', 
                                  var.SymbolArray('consts', ['M', 'rho', 'h']),
-                                 spline.BivariateSpline('T')),
+                                 var.BivariateCallable('T')),
                 var.SymbolArray('x', ['u', 'v', 'V']),
                 var.SymbolArray('t'),
                 var.SymbolArray('y', [['p'], ['q']])]

@@ -4,12 +4,14 @@
 import collections
 import inspect
 import keyword
+import numbers
 
 import jinja2
 import numpy as np
 import sympy
+from sympy.core.function import ArgumentIndexError
 
-from . import spline, utils
+from . import utils
 
 
 class Variable:
@@ -32,14 +34,6 @@ class Variable:
     def identifiers(self):
         """Set of identifiers defined in this variable's code."""
         return {self.name}
-
-
-def UnivariateSplineVariable(name):
-    return spline.UnivariateSpline(name, Variable)
-
-
-def BivariateSplineVariable(name):
-    return spline.BivariateSpline(name, Variable)
 
 
 class SymbolObject(Variable):
@@ -190,6 +184,93 @@ class SymbolArray(Variable, sympy.Array):
         return '.' not in self.name
 
 
+class CallableBase(sympy.Function):
+    """Base class for code-generation callables like in `scipy.interpolate`."""
+    
+    @classmethod
+    def print_prepare_validate(cls, printer):
+        """Returns code to validate and prepare the variable from arguments."""
+        return ''
+    
+    @utils.classproperty
+    def broadcast_elements(cls):
+        """List of elements which should be broadcast to generate the output."""
+        return []
+    
+    @classmethod
+    def subs_dict(cls, value):
+        """Dictionary of substitutions to evaluate with a given value."""
+        name = getattr(cls, 'name', None) or cls.__name__
+        return {cls: value}
+    
+    @utils.classproperty
+    def identifiers(cls):
+        """Set of identifiers defined in this variable's code."""
+        return {cls.name}
+
+
+class UnivariateCallableBase(CallableBase):
+    """Base for univariate callables like Pchip, PPoly, Akima1d, Spline, etc."""
+    
+    nargs = (1, 2)
+    """Number of function arguments."""
+    
+    @property
+    def dx(self):
+        if len(self.args) == 1:
+            return 0
+        assert isinstance(self.args[1], (numbers.Integral, sympy.Integer))
+        return self.args[1]
+    
+    def fdiff(self, argindex=1):
+        if argindex == 2:
+            raise ValueError("Only derivatives wrt first argument allowed")
+        if not (1 <= argindex <= len(self.args)):
+            raise ArgumentIndexError(self, argindex)
+        dx = self.dx
+        return self.__class__(self.args[0], dx + 1)
+
+
+class BivariateCallableBase(CallableBase):
+    """Base for bivariate callables like scipy's BivariateSpline."""
+    
+    nargs = (2, 4)
+    """Number of function arguments."""
+    
+    @property
+    def dx(self):
+        if len(self.args) == 2:
+            return 0
+        assert isinstance(self.args[2], (numbers.Integral, sympy.Integer))
+        return self.args[2]
+    
+    @property
+    def dy(self):
+        if len(self.args) == 2:
+            return 0
+        assert isinstance(self.args[3], (numbers.Integral, sympy.Integer))
+        return self.args[3]
+    
+    def fdiff(self, argindex=1):
+        if argindex > 2:
+            raise ValueError("Only derivatives wrt x and y allowed")
+        if not (1 <= argindex <= len(self.args)):
+            raise ArgumentIndexError(self, argindex)
+        dx = self.dx + 1 if argindex == 1 else self.dx
+        dy = self.dy + 1 if argindex == 2 else self.dy
+        return self.__class__(*self.args[:2], dx, dy)
+
+
+def UnivariateCallable(name):
+    metaclass = type(UnivariateCallableBase)
+    return metaclass(name, (UnivariateCallableBase,), {'name': name})
+
+
+def BivariateCallable(name):
+    metaclass = type(BivariateCallableBase)
+    return metaclass(name, (BivariateCallableBase,), {'name': name})
+
+
 def elements_and_shape(array_like):
     """Return flat list of elements and shape from array-like nested iterable.
     
@@ -221,7 +302,7 @@ def elements_and_shape(array_like):
 
 def make_dict(var_list):
     """Make a dictionary from a variables list."""
-    return {var.name: var for var in var_list}
+    return collections.OrderedDict((var.name, var) for var in var_list)
 
 
 def symbol_index_map(iterable):
@@ -243,5 +324,6 @@ def array_shape_map(iterable):
         if isinstance(var, SymbolObject):
             m.update(array_shape_map(var.members.values()))
         elif isinstance(var, SymbolArray):
-            m[var.name] = var.shape
+            if var.name not in m:
+                m[var.name] = var.shape
     return m

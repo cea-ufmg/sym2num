@@ -8,7 +8,7 @@ import sympy
 
 from sympy.printing.pycode import SciPyPrinter
 
-from . import spline, utils
+from . import utils, var
 
 
 class Printer(SciPyPrinter):
@@ -65,28 +65,14 @@ class Printer(SciPyPrinter):
             return arr_str
 
     def _print(self, e):
-        # Override print subsystem to prevent collisions of spline names and
-        # standard functions like 'gamma' or 'exp'
-        if isinstance(e, spline.UnivariateSplineBase):
-            return self._print_UnivariateSplineBase(e)
-        elif isinstance(e, spline.BivariateSplineBase):
-            return self._print_BivariateSplineBase(e)
+        # Override print subsystem to prevent collisions of custom callable
+        # names and standard functions like 'gamma' or 'exp'
+        if isinstance(e, var.CallableBase):
+            return self._print_CallableBase(e)
         else:
             return super()._print(e)
     
-    def _print_UnivariateSplineBase(self, e):
-        x = self._print(e.args[0])
+    def _print_CallableBase(self, e):
+        args = ', '.join(self._print(arg) for arg in e.args)
         name = getattr(e, 'name', None) or e.__class__.__name__
-        if e.dx == 0:
-            return f'{name}({x})'
-        else:
-            return f'{name}({x}, {e.dx})'
-        
-    def _print_BivariateSplineBase(self, e):
-        x = self._print(e.args[0])
-        y = self._print(e.args[1])
-        name = getattr(e, 'name', None) or e.__class__.__name__
-        if e.dx == 0 and e.dy == 0:
-            return f'{name}({x}, {y}, grid=False)'
-        else:
-            return f'{name}({x}, {y}, dx={e.dx}, dy={e.dy}, grid=False)'
+        return f'{name}({args})'
