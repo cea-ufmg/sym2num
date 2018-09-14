@@ -313,7 +313,8 @@ def symbol_index_map(iterable):
             m.update(symbol_index_map(var.members.values()))
         elif isinstance(var, SymbolArray):
             for ind, symbol in var.ndenumerate():
-                m[symbol.name] = (var.name, ind)
+                if symbol.name not in m:
+                    m[symbol.name] = (var.name, ind)
     return m
 
 
@@ -324,6 +325,5 @@ def array_shape_map(iterable):
         if isinstance(var, SymbolObject):
             m.update(array_shape_map(var.members.values()))
         elif isinstance(var, SymbolArray):
-            if var.name not in m:
-                m[var.name] = var.shape
+            m[var.name] = var.shape
     return m
