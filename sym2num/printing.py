@@ -76,3 +76,12 @@ class Printer(SciPyPrinter):
         args = ', '.join(self._print(arg) for arg in e.args)
         name = getattr(e, 'name', None) or e.__class__.__name__
         return f'{name}({args})'
+
+    def _print_invert(self, e):
+        arg = self._print(e.args[0])
+        return f'~{arg}'
+    
+    def _print_getmaskarray(self, e):
+        arg = self._print(e.args[0])
+        np = self.numpy_alias
+        return f'{np}.ma.getmaskarray({arg})'
