@@ -274,8 +274,15 @@ def collect_symbols(f):
             name = getattr(var, 'name', None)
             if name is not None:
                 symbols[name.split('.')[-1]] = sub
-        kwargs[collected_symbols_arg_name] = symbols
-        return f(self, *args, **kwargs)
+        kwargs[collected_symbols_arg_name] = symbols        
+        ret = f(self, *args, **kwargs)
+        
+        # Ensure function return is a `sympy.Array`
+        if isinstance(ret, list) and ret == []:
+            return sympy.Array([], 0)
+        if not isinstance(ret, sympy.Array):
+            return sympy.Array(ret)
+        return ret
     wrapper.__signature__ = utils.make_signature(wrapped_arg_names, member=True)
     return wrapper
 
