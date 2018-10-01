@@ -53,6 +53,10 @@ class Base:
     def array_shape_map(self):
         return var.array_shape_map(self.variables.values())
     
+    @property
+    def array_element_names(self):
+        return var.array_element_names(self.variables.values())
+    
     def function_codegen_arguments(self, fname):
         """Function argument specifications for code generation."""
         try:

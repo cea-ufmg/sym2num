@@ -327,3 +327,14 @@ def array_shape_map(iterable):
         elif isinstance(var, SymbolArray):
             m[var.name] = var.shape
     return m
+
+
+def array_element_names(iterable):
+    """Return mapping of array indices to element names."""
+    out = {}
+    for var in iterable:
+        if isinstance(var, SymbolObject):
+            out[var.name] = array_element_names(var.members.values())
+        elif isinstance(var, SymbolArray):
+            out[var.name] = {ind: elem.name for ind,elem in var.ndenumerate()}
+    return out
