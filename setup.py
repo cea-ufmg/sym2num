@@ -20,7 +20,7 @@ Topic :: Software Development'''
 
 setup(
     name="sym2num",
-    version="0.2.dev0",
+    version="0.1.dev2",
     packages=find_packages(),
     install_requires=["attrdict", "jinja2", "numpy", "sympy"],
     tests_require=["pytest"],
@@ -33,5 +33,5 @@ setup(
     platforms=["Windows", "Linux", "Solaris", "Mac OS-X", "Unix"],
     classifiers=CLASSIFIERS.split('\n'),
     license="MIT",
-    url="http://github.com/dimasad/sym2num",
+    url="http://github.com/cea-ufmg/sym2num",
 )
