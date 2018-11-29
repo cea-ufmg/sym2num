@@ -5,6 +5,7 @@ import collections
 import inspect
 import keyword
 import numbers
+import re
 
 import jinja2
 import numpy as np
@@ -88,7 +89,7 @@ class SymbolArray(Variable, sympy.Array):
         if array_like is None:
             # We have a scalar array with content equal to the name
             array_like = name        
-        elif utils.isstr(array_like) and re.match('\s', array_like):
+        elif utils.isstr(array_like) and re.search('\s', array_like):
             # If the content is a string with whitespaces, split it
             array_like = array_like.split()
         
@@ -275,12 +276,30 @@ def BivariateCallable(name):
     return metaclass(name, (BivariateCallableBase,), {'name': name})
 
 
+def variable(name, spec):
+    """Make a codegen variable from simple specs."""
+    if isinstance(spec, Variable):
+        return spec
+    elif utils.isstr(spec) and re.match(r'^\(.+\)$', spec):
+        nargs = len(spec[1:-1].split(','))
+        if nargs == 1:
+            return UnivariateCallable(name)
+        elif nargs == 2:
+            return BivariateCallable(name)
+        else:
+            raise ValueError('too many arguments for callable')
+    elif isinstance(spec, dict):
+        contents = (variable(k, v) for k,v in spec.items())
+        return SymbolObject(name, *contents)
+    else:
+        return SymbolArray(name, spec)
+
+
 class Variables(collections.OrderedDict):
     """Mapping collection of code generation variables."""
     
     def __setitem__(self, name, value):
-        if utils.isstr(value) and re.match(r'^\(.+\)$', value):
-            pass
+        super().__setitem__(name, variable(name, value))
 
 
 def elements_and_shape(array_like):
