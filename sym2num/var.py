@@ -86,7 +86,11 @@ class SymbolArray(Variable, sympy.Array):
     
     def __new__(cls, name, array_like=None, dtype='float64'):
         if array_like is None:
-            array_like = name
+            # We have a scalar array with content equal to the name
+            array_like = name        
+        elif utils.isstr(array_like) and re.match('\s', array_like):
+            # If the content is a string with whitespaces, split it
+            array_like = array_like.split()
         
         elements, shape = elements_and_shape(array_like)
         if all(utils.isstr(e) for e in elements):
@@ -269,6 +273,14 @@ def UnivariateCallable(name):
 def BivariateCallable(name):
     metaclass = type(BivariateCallableBase)
     return metaclass(name, (BivariateCallableBase,), {'name': name})
+
+
+class Variables(collections.OrderedDict):
+    """Mapping collection of code generation variables."""
+    
+    def __setitem__(self, name, value):
+        if utils.isstr(value) and re.match(r'^\(.+\)$', value):
+            pass
 
 
 def elements_and_shape(array_like):
