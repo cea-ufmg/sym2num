@@ -44,6 +44,10 @@ class Base:
             msg = f"'{type(self).__name__}' object has no attribute '{name}'"
             raise AttributeError(msg)
         return getattr(self_var, name)
+
+    @property
+    def variables(self):
+        return var.Variables()
     
     @property
     def symbol_index_map(self):

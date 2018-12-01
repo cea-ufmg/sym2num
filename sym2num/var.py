@@ -277,7 +277,7 @@ def BivariateCallable(name):
 
 
 def variable(name, spec):
-    """Make a codegen variable from simple specs."""
+    """Returns a codegen variable from simple specs."""
     if isinstance(spec, Variable):
         return spec
     elif utils.isstr(spec) and re.match(r'^\(.+\)$', spec):
