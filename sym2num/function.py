@@ -1,12 +1,7 @@
 """Sympy numeric function generation."""
 
 
-import collections
-import collections.abc as colabc
 import functools
-import itertools
-import keyword
-import re
 import warnings
 
 import jinja2
@@ -37,16 +32,16 @@ def {{f.name}}({{f.argument_names | join(', ')}}):
     {% endfor %}
     # Prepare and validate arguments
     {%- for arg in f.arguments %}
-    {{ arg.print_prepare_validate(printer) | indent}}
+    {{ arg.print_prepare_validate(printer, used_symbols) | indent}}
     {%- endfor %}
     {% if cse_subs %}# Calculate the common subexpressions
     {% endif -%}
     {% for cse_symbol, cse_expr in cse_subs -%}
     {{cse_symbol}} = {{printer.doprint(cse_expr)}}
     {% endfor -%}
-    {% if f.broadcast_elements -%}
+    {% if broadcast_elements -%}
     # Broadcast the input arguments
-    _broadcast = {{np}}.broadcast({{f.broadcast_elements | join(', ')}})
+    _broadcast = {{np}}.broadcast({{broadcast_elements | join(', ')}})
     _out = {{np}}.zeros(_broadcast.shape + {{f.output.shape}})
     {% else -%}
     _out = {{np}}.zeros({{f.output.shape}})
@@ -103,7 +98,7 @@ class FunctionPrinter:
         return sum((arg.broadcast_elements for arg in self.arguments), [])
     
     def output_code(self, printer):
-        """Iterator of the ndenumeration of the output."""
+        """Iterator of the ndenumeration of the output code."""
         for ind in np.ndindex(*self.output.shape):
             expr = self.output[ind]
             if expr != 0:
@@ -113,11 +108,15 @@ class FunctionPrinter:
         """Print the function definition code."""
         printer = printing.Printer()
         output_code = list(self.output_code(printer))
+        broadcast_elements = self.broadcast_elements
+        used_symbols = self.output.free_symbols.union(broadcast_elements)
         context = dict(
             f=self, 
             printer=printer, 
             np=printer.numpy_alias,
-            output_code=output_code
+            output_code=output_code,
+            used_symbols=used_symbols,
+            broadcast_elements=broadcast_elements,
         )
         return self.template.render(context)
 
@@ -150,9 +149,16 @@ class SymbolicSubsFunction:
 
 def isstatic(arguments):
     """Return whether an argument list corresponds to a static method."""
-    return len(arguments) > 0 and 'cls' != arguments[0].name != 'self'
+    if len(arguments) == 0:
+        return True
+    elif not isinstance(arguments[0], var.SymbolObject):
+        return False
+    else:
+        return arguments[0] 'cls' != arguments[0].name != 'self'
 
 
 def isclassmethod(arguments):
     """Return whether an argument list corresponds to a classmethod."""
-    return len(arguments) > 0 and arguments[0].name == 'cls'
+    return (len(arguments) > 0 
+            and isinstance(arguments[0], var.SymbolObject)
+            and arguments[0].name == 'cls')

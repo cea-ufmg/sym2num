@@ -18,7 +18,7 @@ from . import utils
 class Variable:
     """Represents a code generation variable."""
         
-    def print_prepare_validate(self, printer):
+    def print_prepare_validate(self, printer, used_symbols):
         """Returns code to validate and prepare the variable from arguments."""
         return ''
     
@@ -51,11 +51,15 @@ class SymbolObject(Variable):
         except KeyError:
             raise AttributeError(f'SymbolObject has no attribute {name}')
     
-    def print_prepare_validate(self, printer):
+    def print_prepare_validate(self, printer, used_symbols):
         """Returns code to validate and prepare the variable from arguments."""
         members = self.members.values()
-        lines = (v.print_prepare_validate(printer) for v in members)
-        return str.join('\n', (line for line in lines if line))
+        lines = []
+        for var in members:
+            line = var.print_prepare_validate(printer, used_symbols)
+            if line:
+                lines.append(line)
+        return str.join('\n', lines)
     
     @property
     def broadcast_elements(self):
@@ -167,16 +171,24 @@ class SymbolArray(Variable, sympy.Array):
         {% endif -%}
         {% if v.rank() != 0 or v.name != v[()].name -%}
         # unpack `{{v.name}}` array elements
-        {% for ind, symb in v.ndenumerate() -%}
+        {% for ind, symb in v.ndenumerate() if symb in used_symbols -%}
         {{symb}} = {{v.name}}[..., {{ ind | join(', ')}}]
         {% endfor %}
         {%- endif %}
         """))
     
-    def print_prepare_validate(self, printer):
+    def print_prepare_validate(self, printer, used_symbols):
         """Construct variable from an array_like and check dimensions."""
-        context = dict(v=self, np=printer.numpy_alias, printer=printer)
-        return self.prepare_validate_template.render(context)
+        if self.free_symbols & used_symbols:
+            context = dict(
+                v=self,
+                np=printer.numpy_alias,
+                printer=printer,
+                used_symbols=used_symbols,
+            )
+            return self.prepare_validate_template.render(context)
+        else:
+            return ""
 
     @property
     def identifiers(self):
@@ -193,7 +205,7 @@ class CallableBase(sympy.Function):
     """Base class for code-generation callables like in `scipy.interpolate`."""
     
     @classmethod
-    def print_prepare_validate(cls, printer):
+    def print_prepare_validate(cls, printer, used_symbols):
         """Returns code to validate and prepare the variable from arguments."""
         return ''
     
