@@ -154,7 +154,7 @@ def isstatic(arguments):
     elif not isinstance(arguments[0], var.SymbolObject):
         return False
     else:
-        return arguments[0] 'cls' != arguments[0].name != 'self'
+        return 'cls' != arguments[0].name != 'self'
 
 
 def isclassmethod(arguments):
