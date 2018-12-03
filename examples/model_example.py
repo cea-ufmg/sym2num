@@ -19,17 +19,15 @@ class ExampleModel(model.Base):
     generate_functions = ['f', 'df_dx', 'g', 'dg_dx']
     generate_sparse = ['df_dx', 'f']
     
-    @utils.classproperty
-    @functools.lru_cache()
-    def variables(cls):
+    @property
+    def variables(self):
         """Model variables definition."""
-        vars = [var.SymbolObject('self', 
-                                 var.SymbolArray('consts', ['M', 'rho', 'h']),
-                                 var.BivariateCallable('T')),
-                var.SymbolArray('x', ['u', 'v', 'V']),
-                var.SymbolArray('t'),
-                var.SymbolArray('y', [['p'], ['q']])]
-        return var.make_dict(vars)
+        v = super().variables
+        v['self'] = {'consts': 'M rho h', 'T': '(x,y)'}
+        v['x'] = 'u v V'
+        v['t'] = 't'
+        v['y'] = [['p'], ['q']]
+        return v
     
     @property
     def generate_assignments(self):

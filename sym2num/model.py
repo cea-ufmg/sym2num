@@ -32,8 +32,12 @@ class Base:
 
     def _init_derivatives(self):
         """Initialize model derivatives."""
-        for spec in getattr(self, 'derivatives', []):
-            self.add_derivative(*spec)
+        init_derivatives_method = getattr(self, 'init_derivatives', None)
+        if init_derivatives_method:
+            init_derivatives_method()
+        else:
+            for spec in getattr(self, 'derivatives', []):
+                self.add_derivative(*spec)
     
     def __getattr__(self, name):
         assert name != 'variables' # Otherwise we fall in an infinite loop
@@ -96,14 +100,18 @@ class Base:
             args = args[1:]
         return f(*args)
     
-    def add_derivative(self, name, fname, wrt_names):
-        if isinstance(wrt_names, str):
-            wrt_names = (wrt_names,)
+    def add_derivative(self, name, fname, wrt, flatten_wrt=False):
+        # Test if we have only one wrt item
+        if isinstance(wrt, (str, sympy.NDimArray)):
+            wrt = (wrt,)
         
         out = self.default_function_output(fname)
-        for wrt_name in wrt_names:
-            wrt = self.variables[wrt_name]
-            out = sympy.derive_by_array(out, wrt)
+        for wrt_array in wrt:
+            if utils.isstr(wrt_array):
+                wrt_array = self.variables[wrt_array]
+            if flatten_wrt:
+                wrt_array = sympy.flatten(wrt_array)
+            out = sympy.derive_by_array(out, wrt_array)
         
         args = self.function_codegen_arguments(fname)
         deriv = function.SymbolicSubsFunction(args, out)
