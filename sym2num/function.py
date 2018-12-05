@@ -152,7 +152,7 @@ def isstatic(arguments):
     if len(arguments) == 0:
         return True
     elif not isinstance(arguments[0], var.SymbolObject):
-        return False
+        return True
     else:
         return 'cls' != arguments[0].name != 'self'
 
