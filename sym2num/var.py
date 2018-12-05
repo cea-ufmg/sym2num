@@ -42,8 +42,11 @@ class SymbolObject(Variable):
         self.name = name
         self.members = {}
         for v in args:
-            self.members[v.name] = v
-            v.name = f'{name}.{v.name}'
+            self.add_member(v)
+    
+    def add_member(self, variable):
+        self.members[variable.name] = variable
+        variable.name = f'{self.name}.{variable.name}'
     
     def __getattr__(self, name):
         try: 
@@ -312,6 +315,10 @@ class Variables(collections.OrderedDict):
     
     def __setitem__(self, name, value):
         super().__setitem__(name, variable(name, value))
+    
+    def add_member(self, name, value):
+        self_var = self.setdefault('self', SymbolObject('self'))
+        self_var.add_member(variable(name, value))
 
 
 def elements_and_shape(array_like):
