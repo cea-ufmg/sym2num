@@ -135,7 +135,12 @@ class SymbolicSubsFunction:
         self.__call__ = utils.wrap_with_signature(arg_name_list)(self.__call__)
     
     def __call__(self, *args):
+        # Append self if we are a bound method
+        if self.arguments[0].name == 'self':
+            args = self.arguments[0], *args
+        
         assert len(args) == len(self.arguments)
+        
         subs = {}
         for var, value in zip(self.arguments, args):
             subs.update(var.subs_dict(value))
