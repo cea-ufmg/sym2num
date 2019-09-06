@@ -109,7 +109,7 @@ def make_signature(arg_names, member=False):
     
     if isinstance(arg_names, str):
         arg_names = map(str.strip, arg_name_list.split(','))
-    if member and arg_names[0] != 'self':
+    if member and arg_names and arg_names[0] != 'self':
         arg_names = ['self'] + arg_names
     
     return inspect.Signature([inspect.Parameter(n, kind) for n in arg_names])
