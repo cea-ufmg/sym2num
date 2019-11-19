@@ -8,9 +8,6 @@ import sympy
 from sym2num import model, printing, utils, var
 
 
-import imp
-[imp.reload(m) for m in [var, printing, model]]
-
 class ExampleModel(model.Base):
     
     derivatives = [('df_dx', 'f', 'x'), 
@@ -21,12 +18,19 @@ class ExampleModel(model.Base):
     
     @property
     def variables(self):
-        """Model variables definition."""
+        """Model variables."""
         v = super().variables
-        v['self'] = {'consts': 'M rho h', 'T': '(x,y)'}
-        v['x'] = 'u v V'
+        v['x'] = ['u', 'v', 'V']
         v['t'] = 't'
         v['y'] = [['p'], ['q']]
+        return v
+
+    @property
+    def member_variables(self):
+        """Model member variables."""
+        v = super().variables
+        v['consts'] = ['M', 'rho', 'h']
+        v['T'] = BivariateCallable('T')
         return v
     
     @property
@@ -37,12 +41,19 @@ class ExampleModel(model.Base):
     @model.collect_symbols
     def f(self, t, x, *, a):
         """Example method."""
-        return sympy.Array([a.v, a.t**2 + a.u])
+        return [a.v, a.t**2 + a.u]
     
     @model.collect_symbols
     def g(self, t, x, y, *, a):
         """Another example method."""
-        return sympy.Array([a.T(a.V, a.rho)**2])
+        return [a.T(a.V, a.rho)**2]
+
+
+def reload_all():
+    """Reload dependencies for testing"""
+    import imp
+    for m in (var, printing, model):
+        imp.reload(m)
 
 
 if __name__ == '__main__':

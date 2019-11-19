@@ -1,4 +1,12 @@
-"""Symbolic variables for code generation."""
+"""Symbolic variables for code generation.
+
+We consider three kinds of variables:
+
+* sympy.Symbol ndarrays, specified as  (nested) lists of str, for convenience.
+* Custom callables.
+* Objects of the previous variables, specified as dicts
+
+"""
 
 
 import collections
@@ -15,9 +23,43 @@ from sympy.core.function import ArgumentIndexError
 from . import utils
 
 
+class Dict(collections.OrderedDict):
+    """Dictionary of code generation variables."""
+    
+    def __setitem__(self, key, item):
+        assert isinstance(key, str)
+        variable = Variable(item)
+        super().__setitem__(key, variable)
+
+
+def make_variable(spec):
+    """Make a symbolic variable from specifications."""
+    if isinstance(spec, str):
+        return np.array(sympy.Symbol(spec))
+    elif isinstance(spec, list):
+        names = np.asarray(spec, str)
+        symbols = np.empty(names.shape, object)
+        for ind, name in np.ndenumerate(names):
+            assert utils.isidentifier(name)
+            symbols[ind] = sympy.Symbol(name)
+        return symbols
+    elif isinstance(spec, np.ndarray):
+        return spec
+    elif isinstance(spec, CallableBase):
+        return spec
+    elif isinstance(spec, dict):
+        d = {}
+        for key, val in spec.items():
+            assert utils.isidentifier(key)
+            d[key] = make_variable(val)
+        return d
+    else:
+        raise TypeError("unrecognized variable specification type")
+
+
 class Variable:
     """Represents a code generation variable."""
-        
+    
     def print_prepare_validate(self, printer, used_symbols):
         """Returns code to validate and prepare the variable from arguments."""
         return ''
