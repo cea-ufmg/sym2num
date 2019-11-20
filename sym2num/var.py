@@ -30,6 +30,11 @@ class Variable:
     @property
     def identifiers(self):
         """Set of symbol identifiers defined by this variable."""
+        return {s.name for s in self.symbols}
+    
+    @property
+    def symbols(self):
+        """Set of symbols defined by this variable."""
         raise NotImplementedError('must be implemented by subclasses')
 
 
@@ -40,11 +45,11 @@ class SymbolObject(Variable, dict):
             self[key] = variable(val)
     
     @property
-    def identifiers(self):
-        """Set of symbol identifiers defined by this variable."""
+    def symbols(self):
+        """Set of symbols defined by this variable."""
         s = set()
         for v in self.values():
-            s |= v.identifiers
+            s |= v.symbols
         return s
     
     def ndenumerate(self):
@@ -97,11 +102,11 @@ class SymbolArray(Variable):
 
     def ndenumerate(self):
         yield from np.ndenumerate(self.arr)
-    
+
     @property
-    def identifiers(self):
-        """Set of symbol identifiers defined by this variable."""
-        return {elem.name for elem in self.arr.flat}
+    def symbols(self):
+        """Set of symbols defined by this variable."""
+        return {elem for elem in self.arr.flat}
     
     @property
     def ndim(self):
@@ -116,9 +121,9 @@ class CallableMeta(Variable, sympy.FunctionClass):
     """Metaclass of code generation callables."""
     
     @property
-    def identifiers(self):
-        """Set of symbol identifiers defined by this variable."""
-        return {self.name}
+    def symbols(self):
+        """Set of symbols defined by this variable."""
+        return {self}
     
     @property
     def name(self):

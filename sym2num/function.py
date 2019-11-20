@@ -200,42 +200,46 @@ class FunctionPrinter:
 
 class SymbolicSubsFunction:
     def __init__(self, arguments, output):
-        self.arguments = tuple(arguments)
-        self.output = output
+        self.arguments = arguments
+
+        # Create first round of substitutions. Double substitution is needed
+        # because the same symbol may appear in the function definition and
+        # call arguments.
+        subs = []
+        for arg in arguments.values():
+            for s in arg.symbols:
+                if isinstance(s, sympy.Symbol):
+                    subs.append((s, self.replacement(s)))
         
-        arg_name_list = [a.name for a in arguments]
-        self.__call__ = utils.wrap_with_signature(arg_name_list)(self.__call__)
+        output_asarray = np.asarray(output, object)
+        self.output = np.empty(output_asarray.shape, dtype=object)
+        for ind, expr in np.ndenumerate(output_asarray):
+            self.output[ind] = sympy.sympify(expr).subs(subs)
+    
+    @staticmethod
+    def replacement(s):
+        return sympy.Symbol(f'_temp_subs_{s.name}')
+    
+    def call_subs(self, arg, value):
+        if isinstance(arg, var.SymbolArray):
+            value_asarray = np.asarray(value, object)
+            for ind, symb in arg.ndenumerate():
+                yield self.replacement(symb), value_asarray[ind]
+        if isinstance(arg, var.SymbolObject):
+            for attr, subarg in arg.items():
+                yield from self.call_subs(subarg, getattr(value, attr))
     
     def __call__(self, *args):
-        # Append self if we are a bound method
-        if self.arguments[0].name == 'self':
-            args = self.arguments[0], *args
+        if len(args) != len(self.arguments):
+            msg = f'got {len(args)} arguments of {len(self.arguments)} required'
+            raise TypeError(msg)
+
+        subs = []
+        for arg, value in zip(self.arguments.values(), args):
+            subs.extend(self.call_subs(arg, value))
         
-        assert len(args) == len(self.arguments)
+        output = np.empty(self.output.shape, object)
+        for ind, expr in np.ndenumerate(self.output):
+            output[ind] = sympy.sympify(expr).subs(subs)
         
-        subs = {}
-        for var, value in zip(self.arguments, args):
-            subs.update(var.subs_dict(value))
-        
-        # double substitution is needed when the same symbol appears in the
-        # function definition and call arguments
-        temp_subs = {s: sympy.Symbol('_temp_subs_' + s.name) for s in subs}
-        final_subs = {temp_subs[s]: subs[s] for s in temp_subs}
-        return self.output.subs(temp_subs).subs(final_subs)
-
-
-def isstatic(arguments):
-    """Return whether an argument list corresponds to a static method."""
-    if len(arguments) == 0:
-        return True
-    elif not isinstance(arguments[0], var.SymbolObject):
-        return True
-    else:
-        return 'cls' != arguments[0].name != 'self'
-
-
-def isclassmethod(arguments):
-    """Return whether an argument list corresponds to a classmethod."""
-    return (len(arguments) > 0 
-            and isinstance(arguments[0], var.SymbolObject)
-            and arguments[0].name == 'cls')
+        return output

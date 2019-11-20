@@ -28,5 +28,4 @@ if __name__ == '__main__':
     
     f = function.FunctionPrinter('f', output, arguments)
     print(f.print_def())
-
     
