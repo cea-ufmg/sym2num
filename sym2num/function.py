@@ -57,6 +57,12 @@ def {{f.name}}({{f.argument_names | join(', ')}}):
     {{symbol}} = _{{argname}}_asarray[..., {{ind | join(", ")}}]
     {% endfor -%}
     {%- endfor %}
+    {%- for argname, arg in f.object_arguments() %}
+    # Unpack {{argname}}
+    {% for attr, ind, symbol in arg.ndenumerate() if symbol in used_symbols -%}
+    {{symbol}} = {{argname}}.{{attr}}[..., {{ind | join(", ")}}]
+    {% endfor -%}
+    {%- endfor %}
     {% if cse_subs %}# Calculate the common subexpressions
     {% endif -%}
     {% for cse_symbol, cse_expr in cse_subs -%}
@@ -123,6 +129,12 @@ class FunctionPrinter:
         """Iterator of the SymbolArray arguments."""
         for name, arg in self.arguments.items():
             if isinstance(arg, var.SymbolArray):
+                yield name, arg
+
+    def object_arguments(self):
+        """Iterator of the SymbolObject arguments."""
+        for name, arg in self.arguments.items():
+            if isinstance(arg, var.SymbolObject):
                 yield name, arg
     
     @property

@@ -16,12 +16,16 @@ def reload_all():
 if __name__ == '__main__':
     reload_all()
     
-    from sympy.abc import t, x, y
+    from sympy.abc import t, w, x, y, z, m
     output = sympy.Array(
         [x**2 + sympy.erf(x),
-         sympy.cos(y) + 2*t + sympy.GoldenRatio]
+         sympy.cos(y) + 2*t + sympy.GoldenRatio,
+         z*sympy.sqrt(sympy.sin(w)+2)]
     )
-    arguments = function.Arguments(t=t, state=[x, y])
+    obj = {'data': [w], 'extra': {'other': [m, z]}}
+    arguments = function.Arguments(self=obj, t=t, state=[x, y])
     
     f = function.FunctionPrinter('f', output, arguments)
     print(f.print_def())
+
+    

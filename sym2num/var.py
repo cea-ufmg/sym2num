@@ -38,7 +38,7 @@ class SymbolObject(Variable, dict):
         for key, val in spec.items():
             assert utils.isidentifier(key)
             self[key] = variable(val)
-
+    
     @property
     def identifiers(self):
         """Set of symbol identifiers defined by this variable."""
@@ -46,6 +46,15 @@ class SymbolObject(Variable, dict):
         for v in self.values():
             s |= v.identifiers
         return s
+    
+    def ndenumerate(self):
+        for name, var in self.items():
+            if isinstance(var, SymbolArray):
+                for ind, symbol in var.ndenumerate():
+                    yield name, ind, symbol
+            if isinstance(var, SymbolObject):
+                for attrname, ind, symbol in var.ndenumerate():
+                    yield f'{name}.{attrname}', ind, symbol
 
 
 class SymbolArray(Variable):
