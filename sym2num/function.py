@@ -11,12 +11,21 @@ import sympy
 from . import utils, printing, var
 
 
+class Arguments(var.Dict):
+    """Represents symbolic array function arguments."""
+    pass
+
+
 def print_function(name, output, arguments, **options):
     return FunctionPrinter(name, output, arguments, **options).print_def()
 
 
 def compile_function(name, output, arguments, **options):
     return FunctionPrinter(name, output, arguments, **options).callable()
+
+
+class Arguments(var.Dict):
+    pass
 
 
 function_template_src = '''\
@@ -64,28 +73,35 @@ class FunctionPrinter:
     def __init__(self, name, output, arguments, **options):
         self.name = name
         """Generated function name."""
-
-        if not isinstance(output, sympy.NDimArray):
-            warnings.warn("sympy.NDimArray instance expected as output")
+        
+        output = np.asarray(output, object)
         self.output = output
-        """Symbolic expression of the function's output."""
+        """Symbolic array expression of the function's output."""
         
         self.arguments = arguments
-        """List of sym2num Variables with the function arguments."""
+        """Ordered dict of sym2num Variable with the function arguments."""
         
         self.options = options
         """Symbolic code generation options."""
         
-        argument_ids = [a.identifiers for a in arguments]
-        all_argument_ids = functools.reduce(set.union, argument_ids, set())
+        argument_ids = [a.identifiers for a in arguments.values()]
+        all_argument_ids = utils.union(argument_ids)
         if sum(map(len, argument_ids)) > len(all_argument_ids):
             raise ValueError("duplicate symbols found in input argument list")
         
-        output_ids = {s.name for s in output.free_symbols}
+        output_ids = {s.name for e in output.flat for s in e.free_symbols}
         orphan_symbol_ids = output_ids - all_argument_ids
         if orphan_symbol_ids:
             msg = "symbols `{}` of the output are not in the input"
             raise ValueError(msg.format(', '.join(orphan_symbol_ids)))
+        
+        output_callables = {
+            c.name for e in output.flat for c in e.atoms(var.CallableBase)
+        }
+        orphan_callables = output_callables - all_argument_ids
+        if orphan_callables:
+            msg = "custom callables `{}` of the output are not in the input"
+            raise ValueError(msg.format(', '.join(orphan_callables)))
     
     @property
     def argument_names(self):

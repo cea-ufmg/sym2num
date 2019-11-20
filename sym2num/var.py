@@ -26,21 +26,36 @@ from . import utils
 
 class Variable:
     """Base class of code generation variables."""
+    
+    @property
+    def identifiers(self):
+        """Set of symbol identifiers defined by this variable."""
+        raise NotImplementedError('must be implemented by subclasses')
 
 
 class SymbolObject(Variable, dict):
     def __init__(self, spec):
         for key, val in spec.items():
             assert utils.isidentifier(key)
-            self[key] = make_variable(val)
+            self[key] = variable(val)
+
+    @property
+    def identifiers(self):
+        """Set of symbol identifiers defined by this variable."""
+        s = set()
+        for v in self.values():
+            s |= v.identifiers
+        return s
 
 
 class SymbolArray(Variable):
     """Represents array of symbols for code generation."""
     
     def __init__(self, spec):
-        if utils.isstr(spec):
-            arr = np.ndarray(sympy.Symbol(spec))
+        if isinstance(spec, sympy.Symbol)
+            arr = np.asarray(spec, object)
+        elif utils.isstr(spec):
+            arr = np.asarray(sympy.Symbol(spec), object)
         elif isinstance(spec, list):
             names = np.asarray(spec, str)
             arr = np.empty(names.shape, object)
@@ -51,13 +66,31 @@ class SymbolArray(Variable):
             arr = spec
         else:
             raise TypeError("unrecognized variable specification type")
-        
+                
         self.arr = arr
         """Underlying symbol ndarray."""
+        
+        if len(self.identifiers) != self.arr.size:
+            raise ValueError('repeated values in symbol array')
+    
+    @property
+    def identifiers(self):
+        """Set of symbol identifiers defined by this variable."""
+        return {elem.name for elem in self.arr.flat}
 
 
-class CallableBase:
+class CallableBase(Variable):
     """Base class for code-generation callables like in `scipy.interpolate`."""
+    
+    @utils.classproperty
+    def symbols(cls):
+        """Set of symbols defined by this variable."""
+        return {cls.name}
+
+    @utils.classproperty
+    def name(cls):
+        """Name of this variable."""
+        return cls.__name__
 
 
 class UnivariateCallableBase(CallableBase):
@@ -147,5 +180,5 @@ class Dict(collections.OrderedDict):
             raise TypeError(f'key should be of class `str`')
         if not utils.isidentifier(key):
             raise ValueError(f'key "{key}" is not a valid identifier')
-        variable = make_variable(item)
-        super().__setitem__(key, variable)
+        v = variable(item)
+        super().__setitem__(key, v)

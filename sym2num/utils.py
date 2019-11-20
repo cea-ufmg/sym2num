@@ -173,3 +173,9 @@ def isidentifier(ident: str) -> bool:
         return False
     
     return True
+
+
+def union(iterable):
+    """Return union of all sets in iterable."""
+    return functools.reduce(set.union, iterable, set())
+
