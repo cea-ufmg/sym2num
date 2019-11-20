@@ -106,17 +106,20 @@ class FunctionPrinter:
     @property
     def argument_names(self):
         """List of names of the generated function arguments."""
-        return [arg.name for arg in self.arguments]
+        return self.arguments.keys()
     
     @property
     def broadcast_elements(self):
         """List of argument elements broadcasted to generate the output"""
-        return sum((arg.broadcast_elements for arg in self.arguments), [])
+        be = set()
+        for arg in self.arguments.values():
+            if isinstance(arg, var.SymbolArray):
+                be.add(arg.arr.flat[0])
+        return be
     
     def output_code(self, printer):
         """Iterator of the ndenumeration of the output code."""
-        for ind in np.ndindex(*self.output.shape):
-            expr = self.output[ind]
+        for ind, expr in np.ndenumerate(self.output):
             if expr != 0:
                 yield ind, printer.doprint(expr)
     
@@ -125,7 +128,8 @@ class FunctionPrinter:
         printer = printing.Printer()
         output_code = list(self.output_code(printer))
         broadcast_elements = self.broadcast_elements
-        used_symbols = self.output.free_symbols.union(broadcast_elements)
+        output_elements = utils.union(e.free_symbols for e in self.output.flat)
+        used_symbols = output_elements.union(broadcast_elements)
         context = dict(
             f=self, 
             printer=printer, 

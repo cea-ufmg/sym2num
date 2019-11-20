@@ -52,7 +52,7 @@ class SymbolArray(Variable):
     """Represents array of symbols for code generation."""
     
     def __init__(self, spec):
-        if isinstance(spec, sympy.Symbol)
+        if isinstance(spec, sympy.Symbol):
             arr = np.asarray(spec, object)
         elif utils.isstr(spec):
             arr = np.asarray(sympy.Symbol(spec), object)
