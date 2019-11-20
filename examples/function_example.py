@@ -21,7 +21,7 @@ if __name__ == '__main__':
         [x**2 + sympy.erf(x),
          sympy.cos(y) + 2*t + sympy.GoldenRatio]
     )
-    arguments = function.Arguments(t='t', state=['x', 'y'])
+    arguments = function.Arguments(t=t, state=[x, y])
     
     f = function.FunctionPrinter('f', output, arguments)
     print(f.print_def())

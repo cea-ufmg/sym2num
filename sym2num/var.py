@@ -51,7 +51,7 @@ class SymbolObject(Variable, dict):
 class SymbolArray(Variable):
     """Represents array of symbols for code generation."""
     
-    def __init__(self, spec):
+    def __init__(self, spec, dtype='float_'):
         if isinstance(spec, sympy.Symbol):
             arr = np.asarray(spec, object)
         elif utils.isstr(spec):
@@ -66,17 +66,31 @@ class SymbolArray(Variable):
             arr = spec
         else:
             raise TypeError("unrecognized variable specification type")
-                
+
         self.arr = arr
         """Underlying symbol ndarray."""
         
-        if len(self.identifiers) != self.arr.size:
+        self.dtype = dtype
+        """The generated ndarray dtype."""
+        
+        if len(self.identifiers) != arr.size:
             raise ValueError('repeated values in symbol array')
+
+    def ndenumerate(self):
+        yield from np.ndenumerate(self.arr)
     
     @property
     def identifiers(self):
         """Set of symbol identifiers defined by this variable."""
         return {elem.name for elem in self.arr.flat}
+    
+    @property
+    def ndim(self):
+        return self.arr.ndim
+    
+    @property
+    def shape(self):
+        return self.arr.shape
 
 
 class CallableBase(Variable):
@@ -162,10 +176,10 @@ def BivariateCallable(name):
 
 def variable(spec):
     """Make a symbolic variable from simple specifications."""
-    if isinstance(spec, (str, list, np.ndarray)):
-        return SymbolArray(spec)
-    elif isinstance(spec, CallableBase):
+    if isinstance(spec, Variable):
         return spec
+    elif isinstance(spec, (str, sympy.Symbol, list, np.ndarray)):
+        return SymbolArray(spec)
     elif isinstance(spec, dict):
         return SymbolObject(spec)
     else:

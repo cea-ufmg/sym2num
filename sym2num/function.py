@@ -39,9 +39,23 @@ def {{f.name}}({{f.argument_names | join(', ')}}):
     {% for mod, alias in printer.aliased_imports if mod != 'numpy' -%}
     import {{mod}} as {{alias}}
     {% endfor %}
-    # Prepare and validate arguments
-    {%- for arg in f.arguments %}
-    {{ arg.print_prepare_validate(printer, used_symbols) | indent}}
+    # Convert all arguments to ndarray
+    {%- for argname, arg in f.array_arguments() %}
+    _{{argname}}_asarray = {{np}}.asarray({{argname}}, dtype={{arg.dtype}})
+    {%- endfor %}
+    {%- for argname, arg in f.array_arguments() %}
+    {% if arg.ndim -%}
+    # Check shape of {{argname}}
+    if _{{argname}}_asarray.shape[-{{arg.ndim}}:] != {{arg.shape}}:
+        {%- set expected %}(...,{{arg.shape |join(",")}}){% endset %}
+        shape = _{{argname}}_asarray.shape
+        msg = f'wrong shape for {{argname}}, expected {{expected}}, got {shape}'
+        raise ValueError(msg)
+    {% endif %}    
+    # Unpack {{argname}}
+    {% for ind, symbol in arg.ndenumerate() if symbol in used_symbols -%}
+    {{symbol}} = _{{argname}}_asarray[..., {{ind | join(", ")}}]
+    {% endfor -%}
     {%- endfor %}
     {% if cse_subs %}# Calculate the common subexpressions
     {% endif -%}
@@ -89,16 +103,13 @@ class FunctionPrinter:
         if sum(map(len, argument_ids)) > len(all_argument_ids):
             raise ValueError("duplicate symbols found in input argument list")
         
-        output_ids = {s.name for e in output.flat for s in e.free_symbols}
+        output_ids = {symb.name for symb in self.output_symbols}
         orphan_symbol_ids = output_ids - all_argument_ids
         if orphan_symbol_ids:
             msg = "symbols `{}` of the output are not in the input"
             raise ValueError(msg.format(', '.join(orphan_symbol_ids)))
         
-        output_callables = {
-            c.name for e in output.flat for c in e.atoms(var.CallableBase)
-        }
-        orphan_callables = output_callables - all_argument_ids
+        orphan_callables = self.output_callables - all_argument_ids
         if orphan_callables:
             msg = "custom callables `{}` of the output are not in the input"
             raise ValueError(msg.format(', '.join(orphan_callables)))
@@ -108,6 +119,12 @@ class FunctionPrinter:
         """List of names of the generated function arguments."""
         return self.arguments.keys()
     
+    def array_arguments(self):
+        """Iterator of the SymbolArray arguments."""
+        for name, arg in self.arguments.items():
+            if isinstance(arg, var.SymbolArray):
+                yield name, arg
+    
     @property
     def broadcast_elements(self):
         """List of argument elements broadcasted to generate the output"""
@@ -116,6 +133,17 @@ class FunctionPrinter:
             if isinstance(arg, var.SymbolArray):
                 be.add(arg.arr.flat[0])
         return be
+    
+    @property
+    def output_symbols(self):
+        """Set of free symbols of the output."""
+        return utils.union(e.free_symbols for e in self.output.flat)
+    
+    @property
+    def output_callables(self):
+        """Set of the name of callables used in the output."""
+        atoms = utils.union(e.atoms(var.CallableBase) for e in self.output.flat)
+        return {c.name for c in atoms}
     
     def output_code(self, printer):
         """Iterator of the ndenumeration of the output code."""
@@ -128,8 +156,7 @@ class FunctionPrinter:
         printer = printing.Printer()
         output_code = list(self.output_code(printer))
         broadcast_elements = self.broadcast_elements
-        output_elements = utils.union(e.free_symbols for e in self.output.flat)
-        used_symbols = output_elements.union(broadcast_elements)
+        used_symbols = self.output_symbols.union(broadcast_elements)
         context = dict(
             f=self, 
             printer=printer, 
