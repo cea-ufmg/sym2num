@@ -30,7 +30,7 @@ class Arguments(var.Dict):
 
 function_template_src = '''\
 def {{f.name}}({{f.argument_names | join(', ')}}):
-    """Generated function `{{f.name}}` from sympy Array expression."""
+    """Generated function `{{f.name}}` from sympy array expression."""
     # Function imports
     import numpy as {{np}}
     {% for mod in printer.direct_imports if mod != 'numpy' -%}
@@ -39,9 +39,13 @@ def {{f.name}}({{f.argument_names | join(', ')}}):
     {% for mod, alias in printer.aliased_imports if mod != 'numpy' -%}
     import {{mod}} as {{alias}}
     {% endfor %}
-    # Convert all arguments to ndarray
+    # Process and convert all arguments to ndarray
     {%- for argname, arg in f.array_arguments() %}
     _{{argname}}_asarray = {{np}}.asarray({{argname}}, dtype={{arg.dtype}})
+    {%- endfor %}
+    {%- for argname, fname in f.callable_arguments() 
+            if fname in f.referenced_callables %}
+    {{fname}} = {{argname}}
     {%- endfor %}
     {%- for argname, arg in f.array_arguments() %}
     {% if arg.ndim -%}
@@ -61,6 +65,9 @@ def {{f.name}}({{f.argument_names | join(', ')}}):
     # Unpack {{argname}}
     {% for attr, ind, symbol in arg.ndenumerate() if symbol in used_symbols -%}
     {{symbol}} = {{argname}}.{{attr}}[..., {{ind | join(", ")}}]
+    {% endfor -%}
+    {% for attr, fname in arg.callables() if fname in f.referenced_callables -%}
+    {{fname}} = {{argname}}.{{attr}}
     {% endfor -%}
     {%- endfor %}
     {% if cse_subs %}# Calculate the common subexpressions
@@ -115,7 +122,7 @@ class FunctionPrinter:
             msg = "symbols `{}` of the output are not in the input"
             raise ValueError(msg.format(', '.join(orphan_symbol_ids)))
         
-        orphan_callables = self.output_callables - all_argument_ids
+        orphan_callables = self.referenced_callables - all_argument_ids
         if orphan_callables:
             msg = "custom callables `{}` of the output are not in the input"
             raise ValueError(msg.format(', '.join(orphan_callables)))
@@ -136,6 +143,12 @@ class FunctionPrinter:
         for name, arg in self.arguments.items():
             if isinstance(arg, var.SymbolObject):
                 yield name, arg
+
+    def callable_arguments(self):
+        """Iterator of the callable arguments."""
+        for name, arg in self.arguments.items():
+            if isinstance(arg, var.CallableMeta):
+                yield name, arg.name
     
     @property
     def broadcast_elements(self):
@@ -152,10 +165,10 @@ class FunctionPrinter:
         return utils.union(e.free_symbols for e in self.output.flat)
     
     @property
-    def output_callables(self):
-        """Set of the name of callables used in the output."""
+    def referenced_callables(self):
+        """Set of the name of callables referenced by the function."""
         atoms = utils.union(e.atoms(var.CallableBase) for e in self.output.flat)
-        return {c.name for c in atoms}
+        return {c.fname for c in atoms}
     
     def output_code(self, printer):
         """Iterator of the ndenumeration of the output code."""

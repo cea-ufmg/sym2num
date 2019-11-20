@@ -48,13 +48,23 @@ class SymbolObject(Variable, dict):
         return s
     
     def ndenumerate(self):
+        """ndenumeration of this object SymbolArrays"""
         for name, var in self.items():
             if isinstance(var, SymbolArray):
                 for ind, symbol in var.ndenumerate():
                     yield name, ind, symbol
-            if isinstance(var, SymbolObject):
+            elif isinstance(var, SymbolObject):
                 for attrname, ind, symbol in var.ndenumerate():
                     yield f'{name}.{attrname}', ind, symbol
+
+    def callables(self):
+        """ndenumeration of this object Callables"""
+        for name, var in self.items():
+            if isinstance(var, CallableMeta):
+                yield name, var.name
+            elif isinstance(var, SymbolObject):
+                for attrname, varname in var.callables():
+                    yield f'{name}.{attrname}', varname
 
 
 class SymbolArray(Variable):
@@ -102,18 +112,27 @@ class SymbolArray(Variable):
         return self.arr.shape
 
 
-class CallableBase(Variable):
+class CallableMeta(Variable, sympy.FunctionClass):
+    """Metaclass of code generation callables."""
+    
+    @property
+    def identifiers(self):
+        """Set of symbol identifiers defined by this variable."""
+        return {self.name}
+    
+    @property
+    def name(self):
+        """Name of this variable."""
+        return self.__name__
+
+
+class CallableBase:
     """Base class for code-generation callables like in `scipy.interpolate`."""
     
     @utils.classproperty
-    def symbols(cls):
-        """Set of symbols defined by this variable."""
-        return {cls.name}
-
-    @utils.classproperty
-    def name(cls):
-        """Name of this variable."""
-        return cls.__name__
+    def fname(cls):
+        """Name of the function."""
+        return cls.name
 
 
 class UnivariateCallableBase(CallableBase):
@@ -172,15 +191,14 @@ class BivariateCallableBase(CallableBase):
 
 
 def UnivariateCallable(name):
-    metaclass = type(sympy.Function)
     d = {'nargs': (1,2)}
-    return metaclass(name, (UnivariateCallableBase, sympy.Function), d)
+    return CallableMeta(name, (UnivariateCallableBase, sympy.Function), d)
 
 
 def BivariateCallable(name):
     metaclass = type(sympy.Function)
     d = {'nargs': (2, 4)}
-    return metaclass(name, (BivariateCallableBase, sympy.Function), d)
+    return CallableMeta(name, (BivariateCallableBase, sympy.Function), d)
 
 
 def variable(spec):
