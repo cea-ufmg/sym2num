@@ -28,10 +28,10 @@ from . import function, printing, utils, var
 
 class Base:
     def __init__(self):
-        self.variables = var.Dict()
+        self.variables = var.SymbolObject()
         """Model variables dictionary."""
         
-        self.member_variables = var.Dict()
+        self.member_variables = var.SymbolObject()
         """Model variables dictionary."""
         
         self.init_variables()
@@ -268,56 +268,33 @@ def collect_symbols(f):
     if len(sig.parameters) < 2:
         raise ValueError(f"method {f.__name__} should have at least 2 "
                          "parameters, 'self' and the collected symbols")
-    param_list = list(sig.parameters)
-    collected_symbols_arg_name = param_list[-1]
-    wrapped_arg_names = list(sig.parameters)[1:-1]
-    nargs_wrapped = len(wrapped_arg_names)
+    params = list(sig.parameters)
+    collected_symbols_arg_name = params[-1].name
+    new_sig = sig.replace(parameters=params[1:-1])
+    nargs_wrapped = len(params) - 2
     
     @functools.wraps(f)
-    def wrapper(self, *args, **kwargs):
+    def wrapper(self, *args):
         # Validate arguments
-        nargs_in = len(args) + len(kwargs)
-        if collected_symbols_arg_name in kwargs:
-            msg = (f"{f.__name__}() argument '{collected_symbols_arg_name}' "
-                   "is filled out by the decorator collect_symbols")
-            raise TypeError(msg)
+        nargs_in = len(args)
         if nargs_in != nargs_wrapped:
             raise TypeError(f"{f.__name__}() takes {nargs_wrapped} but "
                             f"{nargs_in} were given")
-
-        # Assert that the needed model variables were specified
-        model_vars = self.variables
-        assert all(arg_name in model_vars for arg_name in wrapped_arg_names)
         
         # Create substitution dictionary
-        subs = {}
-        if 'self' in model_vars:
-            subs.update(model_vars['self'].subs_dict(self))
-        for name, value in zip(wrapped_arg_names, args):
-            subs.update(model_vars[name].subs_dict(value))
-        for name, value in kwargs.items():
-            var = model_vars.get(name, None)
-            if var is None:
-                raise TypeError(f"{f.__name__}() got an unexpected keyword "
-                                f"argument '{name}'")
-            subs.update(model_vars[name].subs_dict(value))
+        subs = self.member_variables.subs_map(self)
+        for name, value in zip(sig.parameters, args):
+            subs.update(self.variables[name].subs_map(value))
         
         # Create collected symbols AttrDict
-        symbols = attrdict.AttrDict()
-        for var, sub in subs.items():
-            name = getattr(var, 'name', None)
-            if name is not None:
-                symbols[name.split('.')[-1]] = sub
-        kwargs[collected_symbols_arg_name] = symbols        
-        ret = f(self, *args, **kwargs)
+        collected_symbols = attrdict.AttrDict()
+        for var, expr in subs.items():
+            collected_symbols[var.name] = expr
+        ret = f(self, *args, **{collected_symbols_arg_name: collected_symbols})
         
-        # Ensure function return is a `sympy.Array`
-        if isinstance(ret, list) and ret == []:
-            return sympy.Array([], 0)
-        if not isinstance(ret, sympy.Array):
-            return sympy.Array(ret)
-        return ret
-    wrapper.__signature__ = utils.make_signature(wrapped_arg_names, member=True)
+        # Ensure function return is an ndarray
+        return np.asarray(ret, object)
+    wrapper.__signature__ = newsig
     return wrapper
 
 

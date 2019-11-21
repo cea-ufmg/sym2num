@@ -24,7 +24,7 @@ def compile_function(name, output, arguments, **options):
     return FunctionPrinter(name, output, arguments, **options).callable()
 
 
-class Arguments(var.Dict):
+class Arguments(var.SymbolObject):
     pass
 
 
@@ -201,8 +201,10 @@ class FunctionPrinter:
 class SymbolicSubsFunction:
     def __init__(self, arguments, output):
         self.arguments = arguments
-        self.replacements = {}
-
+        
+        self.callable_replacements = {}
+        """Cache of callable replacements."""
+        
         # Create first round of substitutions. Double substitution is needed
         # because the same symbol may appear in the function definition and
         # call arguments.
@@ -219,38 +221,29 @@ class SymbolicSubsFunction:
     def replacement(self, s):
         if isinstance(s, sympy.Symbol):
             return sympy.Symbol(f'_temp_subs_{s.name}')
-        elif issubclass(s, var.CallableBase):
+        elif isinstance(s, type) and issubclass(s, var.CallableBase):
+            # Caching necessary as callables with the same name are not equal
             try:
-                return self.replacements[s]
+                return self.callable_replacements[s]
             except KeyError:
                 if issubclass(s, var.UnivariateCallableBase):
                     sub = var.UnivariateCallable(f'_temp_subs_{s.name}')
                 elif issubclass(s, var.BivariateCallableBase):
                     sub = var.BivariateCallable(f'_temp_subs_{s.name}')
-                self.replacements[s] = sub
+                self.callable_replacements[s] = sub
                 return sub
         else:
             raise TypeError
-    
-    def call_subs(self, arg, value):
-        if isinstance(arg, var.SymbolArray):
-            value_asarray = np.asarray(value, object)
-            for ind, symb in arg.ndenumerate():
-                yield self.replacement(symb), value_asarray[ind]
-        elif isinstance(arg, var.SymbolObject):
-            for attr, subarg in arg.items():
-                yield from self.call_subs(subarg, getattr(value, attr))
-        elif issubclass(arg, var.CallableBase):
-            yield self.replacement(arg), value
     
     def __call__(self, *args):
         if len(args) != len(self.arguments):
             msg = f'got {len(args)} arguments of {len(self.arguments)} required'
             raise TypeError(msg)
 
-        subs = []
+        subs = {}
         for arg, value in zip(self.arguments.values(), args):
-            subs.extend(self.call_subs(arg, value))
+            for key, val in arg.subs_map(value).items():
+                subs[self.replacement(key)] = val
         
         output = np.empty(self.output.shape, object)
         for ind, expr in np.ndenumerate(self.output):

@@ -29,3 +29,6 @@ if __name__ == '__main__':
     f = function.FunctionPrinter('f', output, arguments)
     print(f.print_def())
     
+    sf = function.SymbolicSubsFunction(function.Arguments(t=t, m=[x,y]), t**2+x)
+    print( "\n" + "*" * 80 + "\n")
+    print(sf(w**4, [2*x,3*z]))

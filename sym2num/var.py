@@ -35,19 +35,27 @@ class Variable:
     def symbols(self):
         """Set of symbols defined by this variable."""
         raise NotImplementedError('must be implemented by subclasses')
+    
+    def subs_map(self, value):
+        """Create mapping of this variable's symbols to the value given."""
+        raise NotImplementedError('must be implemented by subclasses')
 
 
-class SymbolObject(Variable, dict):
-    def __init__(self, spec):
-        for key, val in spec.items():
-            assert utils.isidentifier(key)
-            self[key] = variable(val)
-
+class SymbolObject(Variable, collections.OrderedDict):
+    
     def __getattr__(self, name):
         try:
             return self[name]
         except KeyError:
             raise AttributeError(f'no attribute named {name}') from None
+
+    def __setitem__(self, key, item):
+        if not utils.isstr(key):
+            raise TypeError(f'key should be of class `str`')
+        if not utils.isidentifier(key):
+            raise ValueError(f'key "{key}" is not a valid identifier')
+        v = variable(item)
+        super().__setitem__(key, v)
     
     @property
     def symbols(self):
@@ -66,15 +74,23 @@ class SymbolObject(Variable, dict):
             elif isinstance(var, SymbolObject):
                 for attrname, ind, symbol in var.ndenumerate():
                     yield f'{name}.{attrname}', ind, symbol
-
+    
     def callables(self):
         """ndenumeration of this object Callables"""
         for name, var in self.items():
-            if issubclass(var, CallableBase):
+            if isinstance(var, type) and issubclass(var, CallableBase):
                 yield name, var.name
             elif isinstance(var, SymbolObject):
                 for attrname, varname in var.callables():
                     yield f'{name}.{attrname}', varname
+    
+    def subs_map(self, value):
+        """Create mapping of this variable's symbols to the value given."""
+        ret = {}
+        for attrname, attrvar in self.items():
+            attrvalue = getattr(value, attrname)
+            ret.update(attrvar.subs_map(attrvalue))
+        return ret
 
 
 class SymbolArray(Variable):
@@ -120,6 +136,13 @@ class SymbolArray(Variable):
     @property
     def shape(self):
         return self.arr.shape
+    
+    def subs_map(self, value):
+        """Create mapping of this variable's symbols to the value given."""
+        value_array = np.asarray(value, object)
+        if self.shape != value_array.shape:
+            raise ValueError('invalid shape for argument')
+        return {self.arr[i]: e for i,e in np.ndenumerate(value_array)}
 
 
 class CallableMeta(Variable, sympy.FunctionClass):
@@ -134,6 +157,10 @@ class CallableMeta(Variable, sympy.FunctionClass):
     def name(self):
         """Name of this variable."""
         return self.__name__
+    
+    def subs_map(self, value):
+        """Create mapping of this variable's symbols to the value given."""
+        return {self: value}
 
 
 class CallableBase:
@@ -221,15 +248,3 @@ def variable(spec):
         return SymbolObject(spec)
     else:
         raise TypeError("unrecognized variable specification type")
-
-
-class Dict(collections.OrderedDict):
-    """Dictionary of code generation variables."""
-    
-    def __setitem__(self, key, item):
-        if not utils.isstr(key):
-            raise TypeError(f'key should be of class `str`')
-        if not utils.isidentifier(key):
-            raise ValueError(f'key "{key}" is not a valid identifier')
-        v = variable(item)
-        super().__setitem__(key, v)
