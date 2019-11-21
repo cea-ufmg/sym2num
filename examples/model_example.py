@@ -10,28 +10,27 @@ from sym2num import model, printing, utils, var
 
 class ExampleModel(model.Base):
     
-    derivatives = [('df_dx', 'f', 'x'), 
-                   ('df_dx_dt', 'df_dx', 't'),
-                   ('dg_dx', 'g', 'x')]
     generate_functions = ['f', 'df_dx', 'g', 'dg_dx']
     generate_sparse = ['df_dx', 'f']
     
-    @property
-    def variables(self):
-        """Model variables."""
-        v = super().variables
+    def init_variables(self):
+        """Initialize model variables."""
+        v = self.variables
         v['x'] = ['u', 'v', 'V']
         v['t'] = 't'
         v['y'] = [['p'], ['q']]
-        return v
-
-    @property
-    def member_variables(self):
+    
+    def init_member_variables(self):
         """Model member variables."""
-        v = super().variables
+        v = self.member_variables
         v['consts'] = ['M', 'rho', 'h']
-        v['T'] = BivariateCallable('T')
-        return v
+        v['T'] = var.BivariateCallable('T')
+
+    def init_derivatives(self):
+        """Initialize model derivatives."""
+        self.add_derivative('df_dx', 'f', 'x')
+        self.add_derivative('df_dx_dt', 'df_dx', 't')
+        self.add_derivative('dg_dx', 'g', 'x')
     
     @property
     def generate_assignments(self):
@@ -57,5 +56,7 @@ def reload_all():
 
 
 if __name__ == '__main__':
+    reload_all()
+    
     e = ExampleModel()
-    print(model.print_class(e))
+    #print(model.print_class(e))

@@ -15,7 +15,6 @@ import keyword
 import numbers
 import re
 
-import attrdict
 import jinja2
 import numpy as np
 import sympy
@@ -43,6 +42,12 @@ class SymbolObject(Variable, dict):
         for key, val in spec.items():
             assert utils.isidentifier(key)
             self[key] = variable(val)
+
+    def __getattr__(self, name):
+        try:
+            return self[name]
+        except KeyError:
+            raise AttributeError(f'no attribute named {name}') from None
     
     @property
     def symbols(self):
@@ -65,7 +70,7 @@ class SymbolObject(Variable, dict):
     def callables(self):
         """ndenumeration of this object Callables"""
         for name, var in self.items():
-            if isinstance(var, CallableMeta):
+            if issubclass(var, CallableBase):
                 yield name, var.name
             elif isinstance(var, SymbolObject):
                 for attrname, varname in var.callables():

@@ -28,8 +28,36 @@ from . import function, printing, utils, var
 
 class Base:
     def __init__(self):
-        self._init_derivatives()
+        self.variables = var.Dict()
+        """Model variables dictionary."""
+        
+        self.member_variables = var.Dict()
+        """Model variables dictionary."""
+        
+        self.init_variables()
+        self.init_member_variables()
+        self.init_derivatives()
+        
+    def init_variables(self):
+        """Initialize model variables."""
+        pass
 
+    def init_member_variables(self):
+        """Initialize model member variables."""
+        pass
+    
+    def init_derivatives(self):
+        """Initialize model derivatives."""
+        pass
+
+    def add_derivative(self, name, fname, wrt, flatten_wrt=False):
+        pass
+
+
+class OldBase:
+    def __init__(self):
+        self._init_derivatives()
+    
     def _init_derivatives(self):
         """Initialize model derivatives."""
         init_derivatives_method = getattr(self, 'init_derivatives', None)
@@ -39,16 +67,6 @@ class Base:
             for spec in getattr(self, 'derivatives', []):
                 self.add_derivative(*spec)
     
-    def __getattr__(self, name):
-        assert name != 'variables' # Otherwise we fall in an infinite loop
-        
-        try:
-            self_var = self.variables['self']
-        except KeyError:
-            msg = f"'{type(self).__name__}' object has no attribute '{name}'"
-            raise AttributeError(msg)
-        return getattr(self_var, name)
-
     @property
     def variables(self):
         return var.Variables()
