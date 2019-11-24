@@ -139,9 +139,14 @@ class SymbolArray(Variable):
     
     def subs_map(self, value):
         """Create mapping of this variable's symbols to the value given."""
-        value_array = np.asarray(value, object)
+        if isinstance(value, SymbolArray):
+            value_array = value.arr
+        else:
+            value_array = np.asarray(value, object)
+        
         if self.shape != value_array.shape:
             raise ValueError('invalid shape for argument')
+        
         return {self.arr[i]: e for i,e in np.ndenumerate(value_array)}
 
 

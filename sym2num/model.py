@@ -28,22 +28,14 @@ from . import function, printing, utils, var
 
 class Base:
     def __init__(self):
-        self.variables = var.SymbolObject()
-        """Model variables dictionary."""
-        
-        self.member_variables = var.SymbolObject()
+        self.variables = var.SymbolObject(self={})
         """Model variables dictionary."""
         
         self.init_variables()
-        self.init_member_variables()
         self.init_derivatives()
         
     def init_variables(self):
         """Initialize model variables."""
-        pass
-
-    def init_member_variables(self):
-        """Initialize model member variables."""
         pass
     
     def init_derivatives(self):
@@ -52,6 +44,49 @@ class Base:
 
     def add_derivative(self, name, fname, wrt, flatten_wrt=False):
         pass
+    
+    @contextlib.contextmanager
+    def use_default_members(self):
+        """Context manager that sets default attributes temporarily."""
+        members = {k: getattr(self, k, None) for k in self.variables['self']}
+        try:
+            for key, val in self.variables['self'].items():
+                setattr(self, key, val)
+            yield
+        finally:
+            for key, val in members.items():
+                setattr(self, key, val)
+    
+    def _get_func(self, fname):
+        try:
+            f = getattr(self, fname)
+        except AttributeError:
+            raise ValueError(f"{fname} member not found")
+        except TypeError:
+            raise TypeError("function name must be a string")
+
+        if not isinstance(f, collections.abc.Callable):
+            raise TypeError(f'{fname} attribute not callable')
+        else:
+            return f
+    
+    def function_codegen_arguments(self, f):
+        
+        if isinstance(f, function.SymbolicSubsFunction):
+            return f.arguments
+        
+        param_names = inspect.signature(f).parameters.keys()
+        return function.Arguments((n,self.variables[n]) for n in param_names)
+    
+    def default_function_output(self, fname):
+        """Function output for the default arguments."""
+        f = self._get_func(fname)
+        if isinstance(f, function.SymbolicSubsFunction):
+            return f.default_output
+        
+        args = self.function_codegen_arguments(f)
+        with self.use_default_members():
+            return f(*args.values())
 
 
 class OldBase:
@@ -106,7 +141,7 @@ class OldBase:
         try:
             f = getattr(self, fname)
         except AttributeError:
-            raise ValueError("{} member not found".format(fname))
+            raise ValueError(f"{fname} member not found")
         except TypeError:
             raise TypeError("function name must be a string")
 
@@ -268,23 +303,23 @@ def collect_symbols(f):
     if len(sig.parameters) < 2:
         raise ValueError(f"method {f.__name__} should have at least 2 "
                          "parameters, 'self' and the collected symbols")
-    params = list(sig.parameters)
+    params = list(sig.parameters.values())
     collected_symbols_arg_name = params[-1].name
-    new_sig = sig.replace(parameters=params[1:-1])
-    nargs_wrapped = len(params) - 2
+    new_sig = sig.replace(parameters=params[:-1])
+    nargs_wrapped = len(params) - 1
     
     @functools.wraps(f)
     def wrapper(self, *args):
         # Validate arguments
-        nargs_in = len(args)
+        nargs_in = len(args) + 1
         if nargs_in != nargs_wrapped:
-            raise TypeError(f"{f.__name__}() takes {nargs_wrapped} but "
-                            f"{nargs_in} were given")
+            raise TypeError(f"{f.__name__} takes {nargs_wrapped} arguments "
+                            f"but got only {nargs_in}")
         
         # Create substitution dictionary
-        subs = self.member_variables.subs_map(self)
-        for name, value in zip(sig.parameters, args):
-            subs.update(self.variables[name].subs_map(value))
+        subs = self.variables['self'].subs_map(self)
+        for param, value in zip(params[1:-1], args):
+            subs.update(self.variables[param.name].subs_map(value))
         
         # Create collected symbols AttrDict
         collected_symbols = attrdict.AttrDict()
@@ -294,7 +329,7 @@ def collect_symbols(f):
         
         # Ensure function return is an ndarray
         return np.asarray(ret, object)
-    wrapper.__signature__ = newsig
+    wrapper.__signature__ = new_sig
     return wrapper
 
 

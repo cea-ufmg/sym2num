@@ -11,7 +11,7 @@ import sympy
 from . import utils, printing, var
 
 
-class Arguments(var.Dict):
+class Arguments(var.SymbolObject):
     """Represents symbolic array function arguments."""
     pass
 
@@ -204,6 +204,9 @@ class SymbolicSubsFunction:
         
         self.callable_replacements = {}
         """Cache of callable replacements."""
+
+        self.default_output = np.asarray(output, object)
+        """The output for the default arguments."""
         
         # Create first round of substitutions. Double substitution is needed
         # because the same symbol may appear in the function definition and
@@ -213,10 +216,9 @@ class SymbolicSubsFunction:
             for s in arg.symbols:
                 subs.append((s, self.replacement(s)))
         
-        output_asarray = np.asarray(output, object)
-        self.output = np.empty(output_asarray.shape, dtype=object)
-        for ind, expr in np.ndenumerate(output_asarray):
-            self.output[ind] = sympy.sympify(expr).subs(subs)
+        self.output_template = np.empty(self.default_output.shape, dtype=object)
+        for ind, expr in np.ndenumerate(self.default_output):
+            self.output_template[ind] = sympy.sympify(expr).subs(subs)
     
     def replacement(self, s):
         if isinstance(s, sympy.Symbol):
@@ -245,8 +247,8 @@ class SymbolicSubsFunction:
             for key, val in arg.subs_map(value).items():
                 subs[self.replacement(key)] = val
         
-        output = np.empty(self.output.shape, object)
-        for ind, expr in np.ndenumerate(self.output):
+        output = np.empty(self.output_template.shape, object)
+        for ind, expr in np.ndenumerate(self.output_template):
             output[ind] = sympy.sympify(expr).subs(subs)
         
         return output

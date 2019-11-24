@@ -1,11 +1,16 @@
 """Example of model code generation."""
 
 
-import functools
+import functools, imp
 
 import sympy
 
 from sym2num import model, printing, utils, var
+
+
+# Reload dependencies for testing
+for m in (var, printing, model):
+    imp.reload(m)
 
 
 class ExampleModel(model.Base):
@@ -19,13 +24,11 @@ class ExampleModel(model.Base):
         v['x'] = ['u', 'v', 'V']
         v['t'] = 't'
         v['y'] = [['p'], ['q']]
+        v['self'] = {
+            'consts': ['M', 'rho', 'h'], 
+            'T': var.BivariateCallable('T')
+        }
     
-    def init_member_variables(self):
-        """Model member variables."""
-        v = self.member_variables
-        v['consts'] = ['M', 'rho', 'h']
-        v['T'] = var.BivariateCallable('T')
-
     def init_derivatives(self):
         """Initialize model derivatives."""
         self.add_derivative('df_dx', 'f', 'x')
@@ -48,15 +51,6 @@ class ExampleModel(model.Base):
         return [a.T(a.V, a.rho)**2]
 
 
-def reload_all():
-    """Reload dependencies for testing"""
-    import imp
-    for m in (var, printing, model):
-        imp.reload(m)
-
-
 if __name__ == '__main__':
-    reload_all()
-    
     e = ExampleModel()
     #print(model.print_class(e))
