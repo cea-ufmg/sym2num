@@ -41,7 +41,7 @@ def {{f.name}}({{f.argument_names | join(', ')}}):
     {% endfor %}
     # Process and convert all arguments to ndarray
     {%- for argname, arg in f.array_arguments() %}
-    _{{argname}}_asarray = {{np}}.asarray({{argname}}, dtype={{arg.dtype}})
+    _{{argname}}_asarray = {{np}}.asarray({{argname}}, dtype={{arg.gen_dtype}})
     {%- endfor %}
     {%- for argname, fname in f.callable_arguments() 
             if fname in f.referenced_callables %}
@@ -156,7 +156,7 @@ class FunctionPrinter:
         be = set()
         for arg in self.arguments.values():
             if isinstance(arg, var.SymbolArray):
-                be.add(arg.arr.flat[0])
+                be.add(arg.flat[0])
         return be
     
     @property

@@ -93,10 +93,10 @@ class SymbolObject(Variable, collections.OrderedDict):
         return ret
 
 
-class SymbolArray(Variable):
+class SymbolArray(Variable, np.ndarray):
     """Represents array of symbols for code generation."""
     
-    def __init__(self, spec, dtype='float_'):
+    def __new__(cls, spec, gen_dtype='float_'):
         if isinstance(spec, sympy.Symbol):
             arr = np.asarray(spec, object)
         elif utils.isstr(spec):
@@ -112,42 +112,29 @@ class SymbolArray(Variable):
         else:
             raise TypeError("unrecognized variable specification type")
 
-        self.arr = arr
-        """Underlying symbol ndarray."""
-        
-        self.dtype = dtype
-        """The generated ndarray dtype."""
-        
-        if len(self.identifiers) != arr.size:
+        if len(set(arr.flat)) != arr.size:
             raise ValueError('repeated values in symbol array')
-
+        
+        obj = super().__new__(cls, arr.shape, dtype=object)
+        obj[...] = arr        
+        obj.gen_dtype = gen_dtype
+        return obj
+    
     def ndenumerate(self):
-        yield from np.ndenumerate(self.arr)
-
+        yield from np.ndenumerate(self)
+    
     @property
     def symbols(self):
         """Set of symbols defined by this variable."""
-        return {elem for elem in self.arr.flat}
-    
-    @property
-    def ndim(self):
-        return self.arr.ndim
-    
-    @property
-    def shape(self):
-        return self.arr.shape
+        return {elem for elem in self.flat}
     
     def subs_map(self, value):
         """Create mapping of this variable's symbols to the value given."""
-        if isinstance(value, SymbolArray):
-            value_array = value.arr
-        else:
-            value_array = np.asarray(value, object)
-        
+        value_array = np.asarray(value, object)
         if self.shape != value_array.shape:
             raise ValueError('invalid shape for argument')
         
-        return {self.arr[i]: e for i,e in np.ndenumerate(value_array)}
+        return {self[i]: e for i,e in np.ndenumerate(value_array)}
 
 
 class CallableMeta(Variable, sympy.FunctionClass):
