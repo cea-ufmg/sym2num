@@ -127,8 +127,6 @@ def wrap_with_signature(arg_name_list, member=False):
 
 def sparsify(array, selector=None):
     """Get nonzero values and indices from an array."""
-    rank = array.rank()
-
     values = []
     indices = []
     
@@ -142,9 +140,9 @@ def sparsify(array, selector=None):
             indices.append(index)
     
     if indices:
-        return sympy.Array(values), np.transpose(indices)
+        return np.array(values), np.transpose(indices)
     else:
-        return sympy.Array([], 0), np.zeros((array.rank(), 0), int)
+        return np.array([]), np.zeros((array.ndim, 0), int)
 
 
 def istril(*index):

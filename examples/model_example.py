@@ -15,7 +15,7 @@ for m in (var, printing, model):
 
 class ExampleModel(model.Base):
     
-    generate_functions = ['f', 'df_dx', 'g', 'dg_dx']
+    generate_functions = ['f', 'df_dx', 'g', 'C']
     generate_sparse = ['df_dx', 'f']
     
     def init_variables(self):
@@ -24,16 +24,15 @@ class ExampleModel(model.Base):
         v['x'] = ['u', 'v', 'V']
         v['t'] = 't'
         v['y'] = [['p'], ['q']]
-        v['self'] = {
-            'consts': ['M', 'rho', 'h'], 
-            'T': var.BivariateCallable('T')
-        }
+        
+        v['self']['consts'] = ['M', 'rho', 'h']
+        v['self']['T'] = var.BivariateCallable('T')
     
     def init_derivatives(self):
         """Initialize model derivatives."""
-        self.add_derivative('df_dx', 'f', 'x')
-        self.add_derivative('df_dx_dt', 'df_dx', 't')
-        self.add_derivative('dg_dx', 'g', 'x')
+        self.add_first_derivative('f', 'x')
+        self.add_second_derivative('f', ('x', 't'))
+        self.add_first_derivative('g', 'x', deriv_name='C')
     
     @property
     def generate_assignments(self):

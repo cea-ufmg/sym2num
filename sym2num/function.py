@@ -24,10 +24,6 @@ def compile_function(name, output, arguments, **options):
     return FunctionPrinter(name, output, arguments, **options).callable()
 
 
-class Arguments(var.SymbolObject):
-    pass
-
-
 function_template_src = '''\
 def {{f.name}}({{f.argument_names | join(', ')}}):
     """Generated function `{{f.name}}` from sympy array expression."""

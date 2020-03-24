@@ -27,12 +27,20 @@ from . import function, printing, utils, var
 
 
 class Base:
+    """Code generation model base."""
+    
+    initialize_default_members = True
+    """Whether model instances should be initialized with 'self' variable."""
+    
     def __init__(self):
         self.variables = var.SymbolObject(self={})
         """Model variables dictionary."""
         
         self.init_variables()
         self.init_derivatives()
+        
+        if self.initialize_default_members:
+            self.set_default_members()
         
     def init_variables(self):
         """Initialize model variables."""
@@ -42,20 +50,68 @@ class Base:
         """Initialize model derivatives."""
         pass
 
-    def add_derivative(self, name, fname, wrt, flatten_wrt=False):
-        pass
+    def first_derivative_name(self, fname, wrt):
+        """Generator of default name of first derivatives."""
+        return f'd{fname}_d{wrt}'
+
+    def second_derivative_name(self, fname, wrt):
+        """Generator of default name of second derivatives."""
+        return f'd2{fname}_d{wrt[0]}_d{wrt[1]}'
+    
+    def add_first_derivative(self, fname, wrt, deriv_name=None):
+        if deriv_name is None:
+            deriv_name = self.first_derivative_name(fname, wrt)
+        
+        f = self.default_function_output(fname)
+        wrt_array = self.variables[wrt]
+        
+        deriv_out = utils.ndexpr_diff(f, wrt_array)
+        args = self.function_codegen_arguments(fname)
+        deriv = function.SymbolicSubsFunction(args, deriv_out)
+        setattr(self, deriv_name, deriv)
+    
+    def add_second_derivative(self, fname, wrt, deriv_name=None):
+        if deriv_name is None:
+            deriv_name = self.second_derivative_name(fname, wrt)
+        
+        f = self.default_function_output(fname)
+        wrt0_array = self.variables[wrt[0]]
+        wrt1_array = self.variables[wrt[1]]
+        
+        deriv0_out = utils.ndexpr_diff(f, wrt0_array)
+        deriv1_out = utils.ndexpr_diff(deriv0_out, wrt1_array)
+        
+        args = self.function_codegen_arguments(fname)
+        deriv = function.SymbolicSubsFunction(args, deriv1_out)
+        setattr(self, deriv_name, deriv)
+    
+    def set_default_members(self):
+        for key, val in self.variables['self'].items():
+            setattr(self, key, val)
     
     @contextlib.contextmanager
-    def use_default_members(self):
+    def using_default_members(self):
         """Context manager that sets default attributes temporarily."""
-        members = {k: getattr(self, k, None) for k in self.variables['self']}
+        set_members = {}
+        unset_members = []
+
+        # Get the values of the members before the entering the context
+        for k in self.variables['self'].keys():
+            try:
+                set_members[k] = getattr(self, k)
+            except AttributeError:
+                unset_members.append(k)
+        
         try:
-            for key, val in self.variables['self'].items():
-                setattr(self, key, val)
+            # Set the members to their "default" values
+            self.set_default_members()
             yield
         finally:
-            for key, val in members.items():
+            # Restore previous values
+            for key, val in set_members.items():
                 setattr(self, key, val)
+            for key in unset_members:
+                delattr(self, key)
     
     def _get_func(self, fname):
         try:
@@ -70,7 +126,8 @@ class Base:
         else:
             return f
     
-    def function_codegen_arguments(self, f):
+    def function_codegen_arguments(self, fname):
+        f = getattr(self, fname)
         
         if isinstance(f, function.SymbolicSubsFunction):
             return f.arguments
@@ -84,8 +141,8 @@ class Base:
         if isinstance(f, function.SymbolicSubsFunction):
             return f.default_output
         
-        args = self.function_codegen_arguments(f)
-        with self.use_default_members():
+        args = self.function_codegen_arguments(fname)
+        with self.using_default_members():
             return f(*args.values())
 
 
