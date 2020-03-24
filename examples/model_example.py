@@ -3,6 +3,7 @@
 
 import functools, imp
 
+import numpy as np
 import sympy
 
 from sym2num import model, function, printing, utils, var
@@ -16,7 +17,6 @@ for m in (var, printing, function, model):
 class ExampleModel(model.Base):
     
     generate_functions = ['f', 'df_dx', 'g', 'C']
-    generate_sparse = ['df_dx', 'f']
     
     def init_variables(self):
         """Initialize model variables."""
@@ -37,7 +37,8 @@ class ExampleModel(model.Base):
     @property
     def generate_assignments(self):
         return dict(nx=len(self.variables['x']),
-                    yshape=self.variables['y'].shape)
+                    yshape=self.variables['y'].shape,
+                    array_test=np.array([3,2,1]))
     
     @model.collect_symbols
     def f(self, t, x, *, a):

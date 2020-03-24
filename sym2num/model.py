@@ -158,88 +158,6 @@ class Base:
             return f(*args.values())
 
 
-class OldBase:
-    def __init__(self):
-        self._init_derivatives()
-    
-    def _init_derivatives(self):
-        """Initialize model derivatives."""
-        init_derivatives_method = getattr(self, 'init_derivatives', None)
-        if init_derivatives_method:
-            init_derivatives_method()
-        else:
-            for spec in getattr(self, 'derivatives', []):
-                self.add_derivative(*spec)
-    
-    @property
-    def variables(self):
-        return var.Variables()
-    
-    @property
-    def symbol_index_map(self):
-        return var.symbol_index_map(self.variables.values())
-
-    @property
-    def array_shape_map(self):
-        return var.array_shape_map(self.variables.values())
-    
-    @property
-    def array_element_names(self):
-        return var.array_element_names(self.variables.values())
-    
-    def function_codegen_arguments(self, fname):
-        """Function argument specifications for code generation."""
-        try:
-            f = getattr(self, fname)
-        except AttributeError:
-            raise ValueError(f"{fname} member not found")
-        except TypeError:
-            raise TypeError("function name must be a string")
-        
-        if isinstance(f, function.SymbolicSubsFunction):
-            return f.arguments
-        
-        param_names = inspect.signature(f).parameters.keys()
-        if 'self' in self.variables:
-            param_names = itertools.chain(['self'], param_names)
-        return [self.variables[n] for n in param_names]
-    
-    @functools.lru_cache()
-    def default_function_output(self, fname):
-        """Function output for the default arguments."""
-        try:
-            f = getattr(self, fname)
-        except AttributeError:
-            raise ValueError(f"{fname} member not found")
-        except TypeError:
-            raise TypeError("function name must be a string")
-
-        if isinstance(f, function.SymbolicSubsFunction):
-            return f.output
-        
-        args = self.function_codegen_arguments(fname)
-        if len(args) > 0 and args[0].name == 'self':
-            args = args[1:]
-        return f(*args)
-    
-    def add_derivative(self, name, fname, wrt, flatten_wrt=False):
-        # Test if we have only one wrt item
-        if isinstance(wrt, (str, sympy.NDimArray)):
-            wrt = (wrt,)
-        
-        out = self.default_function_output(fname)
-        for wrt_array in wrt:
-            if utils.isstr(wrt_array):
-                wrt_array = self.variables[wrt_array]
-            if flatten_wrt:
-                wrt_array = sympy.flatten(wrt_array)
-            out = sympy.derive_by_array(out, wrt_array)
-        
-        args = self.function_codegen_arguments(fname)
-        deriv = function.SymbolicSubsFunction(args, out)
-        setattr(self, name, deriv)
-
-
 def print_class(model, **options):
     model_printer = ModelPrinter(model, **options)
     return model_printer.print_class()
@@ -261,11 +179,12 @@ class {{m.name}}({{ m.bases | join(', ') }}):
     {% for method in m.methods %}
     {{ method | indent }}
     {% endfor %}
-    {% for name, indices in m.sparse_indices.items() -%}
-    {{ printer.print_ndarray(indices, assign_to=name) }}
-    {% endfor %}
     {% for name, value in m.assignments.items() -%}
+    {% if isndarray(value) -%}
+    {{ printer.print_ndarray(value, assign_to=name) }}
+    {% else -%}
     {{ name }} = {{ value }}
+    {% endif -%}
     {% endfor %}
 '''
 
@@ -288,12 +207,7 @@ class ModelPrinter:
             functions = options['functions']
         except KeyError:
             functions = getattr(model, 'generate_functions', [])
-        
-        try:
-            sparse = options['sparse']
-        except KeyError:
-            sparse = getattr(model, 'generate_sparse', [])
-        
+                
         mdl_self_var = self.model.variables['self']
         base_args = function.Arguments([('self', mdl_self_var)])
         f_specs = []
@@ -302,21 +216,9 @@ class ModelPrinter:
             arguments = base_args.copy()
             arguments.update(self.model.function_codegen_arguments(fname))
             f_specs.append((fname, output, arguments))
-        
-        sparse_indices = collections.OrderedDict()
-        for spec in sparse:
-            fname, selector = (spec, None) if utils.isstr(spec) else spec
-            output = model.default_function_output(fname)
-            arguments = model.function_codegen_arguments(fname)
-            values, indices = utils.sparsify(output, selector)
-            f_specs.append((fname + '_val', values, arguments))
-            sparse_indices[fname + '_ind'] = indices
-        
+                
         self._f_specs = f_specs
         """Function generation specifications."""
-
-        self.sparse_indices = sparse_indices
-        """Indices of sparse functions."""
     
     @property
     def name(self):
@@ -356,7 +258,8 @@ class ModelPrinter:
             yield fdef
     
     def print_class(self):
-        context = dict(m=self, printer=printing.Printer())
+        isndarray = lambda var: isinstance(var, np.ndarray)
+        context = dict(m=self, printer=printing.Printer(), isndarray=isndarray)
         return self.template.render(context)
 
     def class_obj(self):
@@ -398,21 +301,4 @@ def collect_symbols(f):
         return np.asarray(ret, object)
     wrapper.__signature__ = new_sig
     return wrapper
-
-
-class ModelArrayInitializer:
-    def __init__(self, **kwargs):
-        # Create all arrays
-        for name, shape in self.array_shape_map.items():
-            if name.startswith('self.') and not name.count('.', 5):
-                setattr(self, name[5:], np.zeros(shape))
-        
-        # Initialize the arguments
-        symbol_index_map = self.symbol_index_map
-        for symbol_name, value in kwargs.items():
-            with contextlib.suppress(KeyError):
-                array_name, index = symbol_index_map[symbol_name]
-                array_name_parts = array_name.split('.')
-                if len(array_name_parts) == 2 and array_name_parts[0] == 'self':
-                    getattr(self, array_name_parts[1])[index] = value
 
