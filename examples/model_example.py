@@ -5,11 +5,11 @@ import functools, imp
 
 import sympy
 
-from sym2num import model, printing, utils, var
+from sym2num import model, function, printing, utils, var
 
 
 # Reload dependencies for testing
-for m in (var, printing, model):
+for m in (var, printing, function, model):
     imp.reload(m)
 
 
@@ -30,9 +30,9 @@ class ExampleModel(model.Base):
     
     def init_derivatives(self):
         """Initialize model derivatives."""
-        self.add_first_derivative('f', 'x')
-        self.add_second_derivative('f', ('x', 't'))
-        self.add_first_derivative('g', 'x', deriv_name='C')
+        self.add_derivative('f', 'x')
+        self.add_derivative('f', ('x', 't'))
+        self.add_derivative('g', 'x', deriv_name='C')
     
     @property
     def generate_assignments(self):
@@ -52,4 +52,4 @@ class ExampleModel(model.Base):
 
 if __name__ == '__main__':
     e = ExampleModel()
-    #print(model.print_class(e))
+    print(model.print_class(e))

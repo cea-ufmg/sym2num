@@ -49,7 +49,19 @@ class Base:
     def init_derivatives(self):
         """Initialize model derivatives."""
         pass
-
+    
+    def add_derivative(self, fname, wrt, deriv_name=None):
+        if utils.isstr(wrt):
+            self.add_first_derivative(fname, wrt, deriv_name)
+        elif isinstance(wrt, tuple) and len(wrt) == 1:
+            self.add_first_derivative(fname, wrt[0], deriv_name)
+        elif isinstance(wrt, tuple) and len(wrt) == 2:
+            self.add_second_derivative(fname, wrt, deriv_name)
+        elif not isinstance(wrt, tuple):
+            raise TypeError("argument wrt must be string or tuple")
+        else:
+            raise ValueError("wrt tuple must have one or two elements")
+        
     def first_derivative_name(self, fname, wrt):
         """Generator of default name of first derivatives."""
         return f'd{fname}_d{wrt}'
@@ -282,10 +294,13 @@ class ModelPrinter:
         except KeyError:
             sparse = getattr(model, 'generate_sparse', [])
         
+        mdl_self_var = self.model.variables['self']
+        base_args = function.Arguments([('self', mdl_self_var)])
         f_specs = []
         for fname in functions:
             output = self.model.default_function_output(fname)
-            arguments = self.model.function_codegen_arguments(fname)
+            arguments = base_args.copy()
+            arguments.update(self.model.function_codegen_arguments(fname))
             f_specs.append((fname, output, arguments))
         
         sparse_indices = collections.OrderedDict()
@@ -338,13 +353,8 @@ class ModelPrinter:
     def methods(self):
         for fname, output, arguments in self._f_specs:
             fdef = function.print_function(fname, output, arguments)
-            if function.isstatic(arguments):
-                yield '\n'.join(('@staticmethod', fdef))
-            elif function.isclassmethod(arguments):
-                yield '\n'.join(('@classmethod', fdef))
-            else:
-                yield fdef
-
+            yield fdef
+    
     def print_class(self):
         context = dict(m=self, printer=printing.Printer())
         return self.template.render(context)
