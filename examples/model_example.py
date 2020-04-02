@@ -16,10 +16,13 @@ for m in (var, printing, function, model):
 
 class ExampleModel(model.Base):
     
-    generate_functions = ['f', 'df_dx', 'g', 'C']
-    
-    def init_variables(self):
-        """Initialize model variables."""
+    generate_functions = ['f', 'df_dx', 'd2f_dx_dt', 'g', 'C']
+
+    def __init__(self):
+        # Initialize base class
+        super().__init__()
+        
+        # Initialize model variables."""
         v = self.variables
         v['x'] = ['u', 'v', 'V']
         v['t'] = 't'
@@ -27,12 +30,15 @@ class ExampleModel(model.Base):
         
         v['self']['consts'] = ['M', 'rho', 'h']
         v['self']['T'] = var.BivariateCallable('T')
-    
-    def init_derivatives(self):
-        """Initialize model derivatives."""
-        self.add_derivative('f', 'x')
-        self.add_derivative('f', ('x', 't'))
-        self.add_derivative('g', 'x', deriv_name='C')
+        
+        # Initialize instance
+        self.set_default_members()
+        
+        # Create model derivatives
+        self.add_derivative('f', 'x', 'df_dx')
+        self.add_derivative('f', ('x', 't'), 'd2f_dx_dt')
+        self.add_derivative('g', 'x', 'C')
+
     
     @property
     def generate_assignments(self):

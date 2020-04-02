@@ -29,73 +29,23 @@ from . import function, printing, utils, var
 class Base:
     """Code generation model base."""
     
-    initialize_default_members = True
-    """Whether model instances should be initialized with 'self' variable."""
-    
     def __init__(self):
         self.variables = var.SymbolObject(self={})
         """Model variables dictionary."""
-        
-        self.init_variables()
-        self.init_derivatives()
-        
-        if self.initialize_default_members:
-            self.set_default_members()
-        
-    def init_variables(self):
-        """Initialize model variables."""
-        pass
-    
-    def init_derivatives(self):
-        """Initialize model derivatives."""
-        pass
-    
-    def add_derivative(self, fname, wrt, deriv_name=None):
+            
+    def add_derivative(self, fname, wrt, dname):
         if utils.isstr(wrt):
-            self.add_first_derivative(fname, wrt, deriv_name)
-        elif isinstance(wrt, tuple) and len(wrt) == 1:
-            self.add_first_derivative(fname, wrt[0], deriv_name)
-        elif isinstance(wrt, tuple) and len(wrt) == 2:
-            self.add_second_derivative(fname, wrt, deriv_name)
+            wrt = (wrt,)
         elif not isinstance(wrt, tuple):
             raise TypeError("argument wrt must be string or tuple")
-        else:
-            raise ValueError("wrt tuple must have one or two elements")
-        
-    def first_derivative_name(self, fname, wrt):
-        """Generator of default name of first derivatives."""
-        return f'd{fname}_d{wrt}'
-
-    def second_derivative_name(self, fname, wrt):
-        """Generator of default name of second derivatives."""
-        return f'd2{fname}_d{wrt[0]}_d{wrt[1]}'
-    
-    def add_first_derivative(self, fname, wrt, deriv_name=None):
-        if deriv_name is None:
-            deriv_name = self.first_derivative_name(fname, wrt)
-        
-        f = self.default_function_output(fname)
-        wrt_array = self.variables[wrt]
-        
-        deriv_out = utils.ndexpr_diff(f, wrt_array)
-        args = self.function_codegen_arguments(fname)
-        deriv = function.SymbolicSubsFunction(args, deriv_out)
-        setattr(self, deriv_name, deriv)
-    
-    def add_second_derivative(self, fname, wrt, deriv_name=None):
-        if deriv_name is None:
-            deriv_name = self.second_derivative_name(fname, wrt)
-        
-        f = self.default_function_output(fname)
-        wrt0_array = self.variables[wrt[0]]
-        wrt1_array = self.variables[wrt[1]]
-        
-        deriv0_out = utils.ndexpr_diff(f, wrt0_array)
-        deriv1_out = utils.ndexpr_diff(deriv0_out, wrt1_array)
         
         args = self.function_codegen_arguments(fname)
-        deriv = function.SymbolicSubsFunction(args, deriv1_out)
-        setattr(self, deriv_name, deriv)
+        expr = self.default_function_output(fname)
+        for wrt_name in wrt:
+            wrt_array = self.variables[wrt_name]
+            expr = utils.ndexpr_diff(expr, wrt_array)
+        deriv = function.SymbolicSubsFunction(args, expr)
+        setattr(self, dname, deriv)
     
     def set_default_members(self):
         for key, val in self.variables['self'].items():
