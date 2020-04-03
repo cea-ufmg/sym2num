@@ -95,6 +95,8 @@ class FunctionPrinter:
         return jinja2.Template(function_template_src)
     
     def __init__(self, name, output, arguments, **options):
+        if not utils.isidentifier(name):
+            raise ValueError("name argument must be a valid python identifier")
         self.name = name
         """Generated function name."""
         
