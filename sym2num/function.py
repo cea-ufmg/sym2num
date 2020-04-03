@@ -152,7 +152,7 @@ class FunctionPrinter:
         """List of argument elements broadcasted to generate the output"""
         be = set()
         for arg in self.arguments.values():
-            if isinstance(arg, var.SymbolArray):
+            if isinstance(arg, var.SymbolArray) and arg.size:
                 be.add(arg.flat[0])
         return be
     

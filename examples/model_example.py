@@ -1,7 +1,8 @@
 """Example of model code generation."""
 
 
-import functools, imp
+import functools
+import importlib
 
 import numpy as np
 import sympy
@@ -11,7 +12,7 @@ from sym2num import model, function, printing, utils, var
 
 # Reload dependencies for testing
 for m in (var, printing, function, model):
-    imp.reload(m)
+    importlib.reload(m)
 
 
 class ExampleModel(model.Base):

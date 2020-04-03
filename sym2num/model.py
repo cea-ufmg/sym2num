@@ -26,11 +26,16 @@ import sympy
 from . import function, printing, utils, var
 
 
+class Variables(var.SymbolObject):
+    """Represents code generation model variables."""
+    pass
+
+
 class Base:
     """Code generation model base."""
     
     def __init__(self):
-        self.variables = var.SymbolObject(self={})
+        self.variables = Variables(self={})
         """Model variables dictionary."""
             
     def add_derivative(self, fname, wrt, dname):
@@ -106,6 +111,14 @@ class Base:
         args = self.function_codegen_arguments(fname)
         with self.using_default_members():
             return f(*args.values())
+
+    def print_code(self, **options):
+        model_printer = ModelPrinter(self, **options)
+        return model_printer.print_class()
+
+    def compile_class(self, **options):
+        model_printer = ModelPrinter(self, **options)
+        return model_printer.class_obj()
 
 
 def print_class(model, **options):
