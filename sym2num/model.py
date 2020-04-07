@@ -137,7 +137,7 @@ import numpy as {{printer.numpy_alias}}
 {% for import in m.imports -%}
 import {{ import }}
 {% endfor %}
-class {{m.name}}({{ m.bases | join(', ') }}):
+class {{m.name}}({{ m.bases | join(', ') }}, metaclass={{m.metaclass}}):
     """Generated code for {{m.name}} from symbolic model."""
     {% for method in m.methods %}
     {{ method | indent }}
@@ -212,7 +212,15 @@ class ModelPrinter:
         try:
             return self.options['bases']
         except KeyError:
-            return getattr(self.model, 'generated_bases', [])
+            return getattr(self.model, 'generated_bases', ['object'])
+
+    @property
+    def metaclass(self):
+        """Metaclass for the generated model class."""
+        try:
+            return self.options['metaclass']
+        except KeyError:
+            return getattr(self.model, 'generated_metaclass', 'type')
     
     @property
     def methods(self):
