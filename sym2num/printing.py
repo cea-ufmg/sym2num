@@ -1,4 +1,4 @@
-'''Sympy printer for numeric code generation.'''
+"""Sympy printer for numeric code generation."""
 
 
 import re

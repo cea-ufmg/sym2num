@@ -46,7 +46,7 @@ class Base:
         
         args = self.function_codegen_arguments(fname)
         expr = self.default_function_output(fname)
-        for wrt_name in wrt:
+        for wrt_name in reversed(wrt):
             wrt_array = self.variables[wrt_name]
             expr = utils.ndexpr_diff(expr, wrt_array)
         deriv = function.SymbolicSubsFunction(args, expr)
