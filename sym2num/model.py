@@ -94,14 +94,14 @@ class Base:
             return f
     
     def function_codegen_arguments(self, fname):
-        f = getattr(self, fname)
-        
+        f = self._get_func(fname)
         if isinstance(f, function.SymbolicSubsFunction):
-            return f.arguments
-        
-        param_names = inspect.signature(f).parameters.keys()
+            param_names = f.arguments.keys()
+        else:
+            param_names = inspect.signature(f).parameters.keys()
         return function.Arguments((n,self.variables[n]) for n in param_names)
     
+    @utils.cached_method
     def default_function_output(self, fname):
         """Function output for the default arguments."""
         f = self._get_func(fname)
@@ -110,7 +110,7 @@ class Base:
         
         args = self.function_codegen_arguments(fname)
         with self.using_default_members():
-            return f(*args.values())
+            return np.asarray(f(*args.values()))
 
     def print_code(self, **options):
         model_printer = ModelPrinter(self, **options)

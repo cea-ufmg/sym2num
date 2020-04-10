@@ -24,6 +24,9 @@ setup(
     packages=find_packages(),
     install_requires=["attrdict", "jinja2", "numpy", "sympy"],
     tests_require=["pytest"],
+    extras_require={
+        "cache": ["cached_property", "methodtools"],
+    },
     
     # metadata for upload to PyPI
     author="Dimas Abreu Archanjo Dutra",

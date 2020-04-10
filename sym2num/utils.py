@@ -19,6 +19,15 @@ except ModuleNotFoundError:
         """On-demand property which is calculated only once and memorized."""
         return property(functools.lru_cache()(f))
 
+try:
+    import methodtools
+    def cached_method(f):
+        return methodtools.lru_cache()(f)
+except ModuleNotFoundError:
+    def cached_method(f):
+        """Null decorator."""
+        return f
+
 
 class cached_class_property:
     """Decorator to cache class properties."""
