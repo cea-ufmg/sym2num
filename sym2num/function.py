@@ -100,7 +100,9 @@ class FunctionPrinter:
         self.name = name
         """Generated function name."""
         
-        output = np.asarray(output, object)
+        output = np.array(output, object)
+        for ind, elem in np.ndenumerate(output):
+            output[ind] = sympy.sympify(elem)
         self.output = output
         """Symbolic array expression of the function's output."""
         
