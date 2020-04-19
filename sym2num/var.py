@@ -92,6 +92,15 @@ class SymbolObject(Variable, collections.OrderedDict):
             ret.update(attrvar.subs_map(attrvalue))
         return ret
 
+    @property
+    def var_spec(self):
+        ret = {}
+        for attrname, attrvar in self.items():
+            attr_var_spec = getattr(attrvar, 'var_spec', None)
+            if attr_var_spec is not None:
+                ret[attrname] = attr_var_spec
+        return ret
+
 
 class SymbolArray(Variable, np.ndarray):
     """Represents array of symbols for code generation."""
@@ -135,6 +144,13 @@ class SymbolArray(Variable, np.ndarray):
             raise ValueError('invalid shape for argument')
         
         return {self[i]: e for i,e in np.ndenumerate(value_array)}
+
+    @property
+    def var_spec(self):
+        spec = np.empty(self.shape, dtype=object)
+        for ind, var in self.ndenumerate():
+            spec[ind] = var.name
+        return spec.tolist()
 
 
 class CallableMeta(Variable, sympy.FunctionClass):

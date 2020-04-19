@@ -61,7 +61,11 @@ def {{f.name}}({{f.argument_names | join(', ')}}):
     {%- for argname, arg in f.object_arguments() %}
     # Unpack {{argname}}
     {% for attr, ind, symbol in arg.ndenumerate() if symbol in used_symbols -%}
+    {% if ind -%}
     {{symbol}} = {{argname}}.{{attr}}[..., {{ind | join(", ")}}]
+    {% else -%}
+    {{symbol}} = {{argname}}.{{attr}}
+    {% endif -%}
     {% endfor -%}
     {% for attr, fname in arg.callables() if fname in f.referenced_callables -%}
     {{fname}} = {{argname}}.{{attr}}
