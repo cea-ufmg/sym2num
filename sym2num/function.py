@@ -38,7 +38,7 @@ def {{f.name}}({{f.argument_names | join(', ')}}):
     # Process and convert all arguments to ndarray
     {%- for argname, arg in f.array_arguments() %}
     {%- set dtype %}{{np}}.{{arg.gen_dtype}}{% endset %}
-    _{{argname}}_asarray = {{np}}.asarray({{argname}}, dtype={{dtype}})
+    _{{argname}}_asarray = {{np}}.asanyarray({{argname}}, dtype={{dtype}})
     {%- endfor %}
     {%- for argname, fname in f.callable_arguments() 
             if fname in f.referenced_callables %}
