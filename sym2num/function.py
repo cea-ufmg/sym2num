@@ -2,6 +2,7 @@
 
 
 import functools
+import inspect
 import warnings
 
 import jinja2
@@ -212,7 +213,18 @@ class SymbolicSubsFunction:
 
         self.default_output = np.asarray(output, object)
         """The output for the default arguments."""
-        
+
+        kind = inspect.Parameter.POSITIONAL_ONLY
+        params = [inspect.Parameter(name, kind) for name in arguments]
+        self.__signature__ = inspect.Signature(params)
+        """Function call signature."""
+    
+    @property
+    def ismethod(self):
+        """Wether this function is a method."""
+        for argname in self.arguments:
+            return argname == 'self'
+    
     def _prepare_call(self):
         if hasattr(self, 'output_template'):
             return

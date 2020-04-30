@@ -40,6 +40,14 @@ class Base:
     
         self.derivatives = {}
         """Dictionary of model derivatives, to optimize higher order diff."""
+
+    def __getattribute__(self, name):
+        """Overloaded method to bind SymbolicSubsFunction objects."""
+        attr = super().__getattribute__(name)
+        if isinstance(attr, function.SymbolicSubsFunction) and attr.ismethod:
+            return functools.partial(attr, self)
+        else:
+            return attr
     
     def _compute_derivative(self, fname, wrt):
         assert isinstance(wrt, tuple)
@@ -61,7 +69,7 @@ class Base:
         elif not isinstance(wrt, tuple):
             raise TypeError("argument wrt must be string or tuple")
         
-        args = self.function_codegen_arguments(fname)
+        args = self.function_codegen_arguments(fname, include_self=True)
         expr = self._compute_derivative(fname, wrt)
         deriv = function.SymbolicSubsFunction(args, expr)
         setattr(self, dname, deriv)
@@ -94,34 +102,21 @@ class Base:
                 setattr(self, key, val)
             for key in unset_members:
                 delattr(self, key)
-    
-    def _get_func(self, fname):
-        try:
-            f = getattr(self, fname)
-        except AttributeError:
-            raise ValueError(f"{fname} member not found")
-        except TypeError:
-            raise TypeError("function name must be a string")
-
-        if not isinstance(f, collections.abc.Callable):
-            raise TypeError(f'{fname} attribute not callable')
-        else:
-            return f
-    
-    def function_codegen_arguments(self, fname):
-        f = self._get_func(fname)
-        if isinstance(f, function.SymbolicSubsFunction):
-            param_names = f.arguments.keys()
-        else:
-            param_names = inspect.signature(f).parameters.keys()
+        
+    def function_codegen_arguments(self, fname, include_self=False):
+        f = getattr(self, fname)
+        param_names = inspect.signature(f).parameters.keys()
+        if include_self:
+            param_names = ['self', *param_names]
         return function.Arguments((n,self.variables[n]) for n in param_names)
     
     @utils.cached_method
     def default_function_output(self, fname):
         """Function output for the default arguments."""
-        f = self._get_func(fname)
-        if isinstance(f, function.SymbolicSubsFunction):
-            return f.default_output
+        f = getattr(self, fname)
+        if isinstance(f, functools.partial):
+            if isinstance(f.func, function.SymbolicSubsFunction):
+                return f.func.default_output
         
         args = self.function_codegen_arguments(fname)
         with self.using_default_members():
@@ -186,15 +181,12 @@ class ModelPrinter:
         except KeyError:
             functions = getattr(model, 'generate_functions', [])
                 
-        mdl_self_var = self.model.variables['self']
-        base_args = function.Arguments([('self', mdl_self_var)])
         f_specs = []
         for fname in functions:
             output = self.model.default_function_output(fname)
-            arguments = base_args.copy()
-            arguments.update(self.model.function_codegen_arguments(fname))
+            arguments = self.model.function_codegen_arguments(fname, True)
             f_specs.append((fname, output, arguments))
-                
+        
         self._f_specs = f_specs
         """Function generation specifications."""
     
