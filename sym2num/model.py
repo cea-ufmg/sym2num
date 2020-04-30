@@ -37,7 +37,24 @@ class Base:
     def __init__(self):
         self.variables = Variables(self={})
         """Model variables dictionary."""
-            
+    
+        self.derivatives = {}
+        """Dictionary of model derivatives, to optimize higher order diff."""
+    
+    def _compute_derivative(self, fname, wrt):
+        assert isinstance(wrt, tuple)
+        if wrt == ():
+            return self.default_function_output(fname)
+        
+        # See if the derivative is registered
+        dname = self.derivatives.get((fname,) + wrt)
+        if dname is not None:
+            return self.default_function_output(dname)
+        
+        expr = self._compute_derivative(fname, wrt[1:])
+        wrt_array = self.variables[wrt[0]]
+        return utils.ndexpr_diff(expr, wrt_array)
+    
     def add_derivative(self, fname, wrt, dname):
         if utils.isstr(wrt):
             wrt = (wrt,)
@@ -45,12 +62,10 @@ class Base:
             raise TypeError("argument wrt must be string or tuple")
         
         args = self.function_codegen_arguments(fname)
-        expr = self.default_function_output(fname)
-        for wrt_name in reversed(wrt):
-            wrt_array = self.variables[wrt_name]
-            expr = utils.ndexpr_diff(expr, wrt_array)
+        expr = self._compute_derivative(fname, wrt)
         deriv = function.SymbolicSubsFunction(args, expr)
         setattr(self, dname, deriv)
+        self.derivatives[(fname,) + wrt] = dname
     
     def set_default_members(self):
         for key, val in self.variables['self'].items():
