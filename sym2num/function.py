@@ -213,11 +213,15 @@ class SymbolicSubsFunction:
         self.default_output = np.asarray(output, object)
         """The output for the default arguments."""
         
+    def _prepare_call(self):
+        if hasattr(self, 'output_template'):
+            return
+        
         # Create first round of substitutions. Double substitution is needed
         # because the same symbol may appear in the function definition and
         # call arguments.
         subs = []
-        for arg in arguments.values():
+        for arg in self.arguments.values():
             for s in arg.symbols:
                 subs.append((s, self.replacement(s)))
         
@@ -247,6 +251,8 @@ class SymbolicSubsFunction:
             msg = f'got {len(args)} arguments of {len(self.arguments)} required'
             raise TypeError(msg)
 
+        self._prepare_call()
+        
         subs = {}
         for arg, value in zip(self.arguments.values(), args):
             for key, val in arg.subs_map(value).items():
